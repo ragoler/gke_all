@@ -100,7 +100,7 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 *   **Description**: Develops the automated `build_infra.sh` script to create cluster and shared services, builds images using `scripts/build_and_push.sh`, and runs full end-to-end functional tests.
 *   **Tasks**:
     - `[x]` Create `scripts/build_and_push.sh` building and pushing all container images.
-    - `[x]` Create `build_infra.sh` bootstrapping GKE with GPU, gVisor nodes, persistent disk PVCs, and gateways.
+    - `[x]` Create `build_infra.sh` bootstrapping base GKE with persistent disk PVCs and shared gateways (omitting upfront specialized node pools).
     - `[x]` Deploy the Showcase Admin Dashboard pod.
     - `[x]` Run End-to-End verification: Deploy Sandbox & GPU inference to custom namespaces, verify vLLM chat streaming, verify local sandbox-to-vLLM cluster routing, and verify teardown deletions.
 *   **Success Criteria**:

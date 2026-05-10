@@ -169,15 +169,14 @@ To support both high-speed local coding and real cluster deployments, the system
 
 ## 5. Infrastructure Setup Script (`build_infra.sh`)
 
-This script handles the bootstrap sequence of the GKE cluster. The first showcase (Agent Sandbox) is left dormant, ready for dynamic user installation:
+This script handles the base bootstrap sequence of the GKE cluster, provisioning only shared baseline resources to minimize upfront cloud costs:
 
 1.  **Validation**: Reads `.env` parameters and ensures `gcloud` context is set.
 2.  **Shared Base Provisioning**:
-    *   Creates the GKE Cluster with Workload Identity enabled.
+    *   Creates the GKE Cluster with standard default node pool (for Admin Pod) and Workload Identity enabled.
     *   Enables the GKE Gateway API and deploys the central `external-http-gateway`.
-    *   Configures the gVisor-enabled node pool (required for Feature 1).
-    *   Configures GPU node pools (required for Feature 2).
     *   Configures direct IAM principal bindings for Vertex AI WIF.
+    *   *Note*: Specialized node pools (gVisor and GPU Spot L4 pools) are **omitted** here. They are created dynamically by the Showcase Admin app on feature deployment, and deleted on teardown to optimize cost.
 3.  **Admin Pod Deployment**:
     *   Deploys the PersistentVolumeClaim (`showcase-admin-pvc`).
     *   Deploys the Showcase Admin Dashboard pod in namespace `gke-showcase-admin`, mounting the persistent disk to `/data`.

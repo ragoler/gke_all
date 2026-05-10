@@ -129,13 +129,12 @@ Run the bootstrapping automation script:
 ./build_infra.sh
 ```
 *   **What this does**: 
-    1. Provisions a **GKE Standard Cluster** with Workload Identity Federation enabled.
-    2. Provisions a specialized **gVisor Node Pool** (for sandboxing).
-    3. Provisions a Spot **NVIDIA L4 GPU Node Pool** (for inference models).
-    4. Enables Gateway API standard controllers and GKE Agent Sandbox add-ons.
-    5. Configures Workload Identity IAM bindings linking showcase ServiceAccounts to Vertex AI roles.
-    6. Creates a **Persistent Volume Claim (PVC)** backed by standard Persistent Disks.
-    7. Deploys the shared **GKE HTTP Gateway** and the **Showcase Admin Dashboard** mapped to PVC storage.
+    1. Provisions a **GKE base Cluster** (with standard node pool for the Admin Hub pod) and Workload Identity enabled.
+    2. Enables Gateway API standard controllers and GKE Agent Sandbox add-ons.
+    3. Configures Workload Identity IAM bindings linking showcase ServiceAccounts to Vertex AI roles.
+    4. Creates a **Persistent Volume Claim (PVC)** backed by standard Persistent Disks.
+    5. Deploys the shared **GKE HTTP Gateway** and the **Showcase Admin Dashboard** mapped to PVC storage.
+    *   *Note*: Specialized node pools (gVisor and Spot NVIDIA L4 GPU pools) are **not** created here; they are provisioned dynamically when the features are deployed.
 
 ### Step 3: Access and Dynamic Showcase Installation
 1. Find the external IP address of the shared GKE HTTP Gateway:

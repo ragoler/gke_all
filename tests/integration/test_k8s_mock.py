@@ -34,11 +34,15 @@ async def test_deploy_showcase_real_mode(mock_init, init_memory_db):
     mock_apps_instance = mock.AsyncMock()
     mock_custom_instance = mock.AsyncMock()
     
-    # We patch the ApiClient and specific client builders
+    # We patch the ApiClient, gcloud CLI commands, and specific client builders
     with mock.patch("kubernetes_asyncio.client.CoreV1Api", return_value=mock_core_instance), \
          mock.patch("kubernetes_asyncio.client.AppsV1Api", return_value=mock_apps_instance), \
          mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom_instance), \
+         mock.patch("showcase_admin.app.k8s_client.run_gcloud_cmd", new_callable=mock.AsyncMock) as mock_gcloud, \
          mock.patch("kubernetes_asyncio.client.ApiClient") as mock_client_class:
+        
+        # Simulate that the pool exists to prevent dynamic creation trigger
+        mock_gcloud.return_value = "showcase-gvisor-pool"
         
         db = SessionLocal()
         try:
