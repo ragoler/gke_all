@@ -83,14 +83,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 ---
 
 ### [x] Milestone 6: Showcase Feature 2 - Spot GPU & vLLM Model Inference
-*   **Objective**: Package the vLLM Inference showcase with dynamic namespaces, L4 GPU Spot configurations, GCSFuse volume mapping, and a chat playground.
-*   **Description**: Outlines vLLM manifests, configures Spot node tolerations, structures read-only GCSFuse mounts, and designs a beautiful inline token streaming playground.
+*   **Objective**: Package the vLLM Inference showcase with dynamic namespaces, L4 GPU Spot configurations, GCSFuse volume mapping, and a chat playground using Vertex Model Garden.
+*   **Description**: Outlines vLLM manifests, configures Spot node tolerations, structures read-only GCSFuse mounts targeting Google's public bucket `vertex-model-garden-public-us`, and designs a beautiful inline token streaming playground.
 *   **Tasks**:
     - `[x]` Package the vLLM code, templates, and CSS chat client under `features/gpu-inference/`.
-    - `[x]` Setup manifests in `features/gpu-inference/infra/` utilizing Spot GPU schedulers and GCSFuse bucket configs.
+    - `[x]` Setup manifests in `features/gpu-inference/infra/` utilizing Spot GPU schedulers and Google's public Model Garden GCSFuse bucket configuration.
     - `[x]` Wire the model server routes to register local service targets.
 *   **Success Criteria**:
-    - Provisions the inference namespace and mounts the weight storage dynamically.
+    - Provisions the inference namespace and mounts the public weight storage dynamically.
     - Exposes an inline chat playroom streaming tokens, and provides a stable cluster-local service DNS.
 
 ---

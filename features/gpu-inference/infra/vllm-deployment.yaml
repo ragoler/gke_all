@@ -34,7 +34,7 @@ spec:
         image: vllm/vllm-openai:latest
         args:
         - "--model"
-        - "/data/model"
+        - "/data/model/gemma/gemma-2b-it"
         - "--port"
         - "8000"
         ports:

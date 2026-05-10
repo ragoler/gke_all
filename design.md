@@ -146,8 +146,10 @@ Each showcase module is fully self-contained under `/features/<name>`. The Showc
             *   This completely avoids outbound internet traffic, showcasing safe, low-latency, local model inference within GKE's secure cluster boundary.
 
 #### Feature 2: vLLM GPU Model Inference
-*   **Goal**: Deploy a self-hosted, optimized open-source LLM (e.g., Gemma 2B) behind a shared inference gateway.
-*   **GKE Features Illustrated**: Dynamic GPU node pool provisioning, **Spot NVIDIA L4 GPU Node Pools**, **GCSFuse CSI Driver** (mounting model weights directly from a GCS bucket), and GKE Gateway routing.
+*   **Goal**: Deploy a self-hosted, optimized open-source LLM (e.g., Gemma 2B) behind a shared inference gateway using Google-hosted Vertex AI Model Garden weights.
+*   **GKE Features Illustrated**: Dynamic GPU node pool provisioning, **Spot NVIDIA L4 GPU Node Pools**, **GCSFuse CSI Driver** (mounting public read-only GCS buckets directly into container filesystems), and GKE Gateway routing.
+*   **Architecture**:
+    - To completely eliminate GCS hosting costs and manual weight uploads, the vLLM pod mounts Google's official public Model Garden bucket (`vertex-model-garden-public-us`) as a read-only GCSFuse volume, loading model weights directly from `gemma/gemma-2b-it`.
 *   **Interaction Playroom**: An embedded chat playground client targeting the OpenAI-compatible API served by vLLM, showing direct response token streaming, model stats, and inference latency.
 *   **Integration Output**: Exposes a stable cluster-internal service endpoint (`http://vllm-service.<vllm-namespace>.svc.cluster.local:8000`) which other showcases (like the Agent Sandbox) can leverage for local AI reasoning.
 
