@@ -16,27 +16,27 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 
 ## Milestones & Progress Checklist
 
-### [ ] Milestone 1: Virtual Environment & Offline Mock Testing Setup
+### [x] Milestone 1: Virtual Environment & Offline Mock Testing Setup
 *   **Objective**: Establish the local Python virtual environment and build a comprehensive, offline-capable pytest testing harness.
 *   **Description**: Sets up `.venv`, `.env.example` config specifications, git-ignores, and the `/tests` directory structure (with pytest fixtures, config loaders, and Basic Auth middleware).
 *   **Tasks**:
     - `[x]` Create Python virtual environment (`.venv`) in workspace.
-    - `[ ]` Create `.env.example` template and secure `.gitignore` configuration.
-    - `[ ]` Author `/tests/conftest.py` to manage global mock fixtures and mock FastAPI TestClient bindings.
-    - `[ ]` Implement `/tests/unit/test_config.py` to check environment configuration loaders.
-    - `[ ]` Implement `/tests/unit/test_auth.py` to test HTTP Basic Authentication checking logic.
+    - `[x]` Create `.env.example` template and secure `.gitignore` configuration.
+    - `[x]` Author `/tests/conftest.py` to manage global mock fixtures and mock FastAPI TestClient bindings.
+    - `[x]` Implement `/tests/unit/test_config.py` to check environment configuration loaders.
+    - `[x]` Implement `/tests/unit/test_auth.py` to test HTTP Basic Authentication checking logic.
 *   **Success Criteria**:
     - Running `pytest tests/unit` executes instantly in the virtual environment, passing all configuration and auth checks.
 
 ---
 
-### [ ] Milestone 2: Persistent State & Showcase Hub Backend API
+### [x] Milestone 2: Persistent State & Showcase Hub Backend API
 *   **Objective**: Build the central FastAPI backend with dynamic user namespace overrides, feature deletion controllers, and relational SQLite persistence.
 *   **Description**: Establishes database schemas for tracking installed showcases (their custom namespaces, reach out URLs, and operational status), and mounts database files at `/data/showcase.db`. Exposes Basic Auth secured API endpoints.
 *   **Tasks**:
-    - `[ ]` Implement SQLite session config and database schemas in `showcase-admin/app/database.py`.
-    - `[ ]` Build core FastAPI routes in `showcase-admin/app/main.py` with Basic Auth checkpoints, allowing custom namespace parameters on deployment (`POST /api/showcases/{name}/deploy`) and complete namespace deletion (`DELETE /api/showcases/{name}/teardown`).
-    - `[ ]` Author `/tests/unit/test_db.py` to verify table creations and CRUD operations.
+    - `[x]` Implement SQLite session config and database schemas in `showcase_admin/app/database.py`.
+    - `[x]` Build core FastAPI routes in `showcase_admin/app/main.py` with Basic Auth checkpoints, allowing custom namespace parameters on deployment (`POST /api/showcases/{name}/deploy`) and complete namespace deletion (`DELETE /api/showcases/{name}/teardown`).
+    - `[x]` Author `/tests/unit/test_db.py` to verify table creations and CRUD operations.
 *   **Success Criteria**:
     - Database successfully persists configurations locally or on a remounted GKE PVC.
     - Pytest unit tests pass cleanly.
@@ -47,7 +47,7 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 *   **Objective**: Build the asynchronous GKE dynamic resource orchestrator supporting custom namespaces, deletion calls, and simulated offline states.
 *   **Description**: Implements `k8s_client.py` to dynamically apply and delete templates in custom user-specified namespaces. Supports a simulated offline manager (`MODE=MOCK`) that mimics namespace lifecycle transitions and streams diagnostic logs.
 *   **Tasks**:
-    - `[ ]` Implement `showcase-admin/app/k8s_client.py` supporting dynamic namespace provisioning and resource deletions.
+    - `[ ]` Implement `showcase_admin/app/k8s_client.py` supporting dynamic namespace provisioning and resource deletions.
     - `[ ]` Build mock GKE client controllers inside `k8s_client.py` to simulate state loops for custom namespaces.
     - `[ ]` Implement `/tests/integration/test_k8s_mock.py` and `/tests/integration/test_api_mock.py`.
 *   **Success Criteria**:
@@ -60,9 +60,9 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 *   **Objective**: Design the premium single-page HTML/CSS/JS dashboard frontend with user namespace inputs, delete buttons, reach out URLs, and playroom interaction overlays.
 *   **Description**: Develops the dark-theme layout, adding text inputs for namespace selection, "Open Playroom" toggle overlays, "Delete Showcase" actions, and log polling frames.
 *   **Tasks**:
-    - `[ ]` Design `showcase-admin/frontend/index.html` adding custom namespace input forms, active reach out URL links, and inline console panels.
-    - `[ ]` Develop `showcase-admin/frontend/style.css` featuring premium glassmorphism variables and glowing status micro-animations.
-    - `[ ]` Develop `showcase-admin/frontend/app.js` to handle authenticated CRUD triggers, poll namespaces, and stream diagnostic outputs.
+    - `[ ]` Design `showcase_admin/frontend/index.html` adding custom namespace input forms, active reach out URL links, and inline console panels.
+    - `[ ]` Develop `showcase_admin/frontend/style.css` featuring premium glassmorphism variables and glowing status micro-animations.
+    - `[ ]` Develop `showcase_admin/frontend/app.js` to handle authenticated CRUD triggers, poll namespaces, and stream diagnostic outputs.
 *   **Success Criteria**:
     - Dashboard loads in mock mode showing custom namespace fields and reach-out URL hooks on each card.
     - Pressing "Tear Down" triggers confirmation alerts, fades components, and removes simulated namespaces successfully.
