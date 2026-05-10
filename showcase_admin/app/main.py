@@ -30,7 +30,7 @@ frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fronten
 os.makedirs(frontend_dir, exist_ok=True)
 
 # Serve Frontend SPA UI
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, dependencies=api_dependencies)
 async def read_root():
     index_path = os.path.join(frontend_dir, 'index.html')
     if os.path.exists(index_path):
