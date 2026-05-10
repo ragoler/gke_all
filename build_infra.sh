@@ -70,6 +70,12 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 echo "Creating admin namespace..."
 kubectl create namespace gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
 
+echo "Creating secure credentials secret..."
+kubectl create secret generic showcase-admin-creds \
+    --from-literal=ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
+    --from-literal=ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin-password}" \
+    -n gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
+
 echo "Applying shared gateway configuration..."
 kubectl apply -f infra/gateway.yaml
 

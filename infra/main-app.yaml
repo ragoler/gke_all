@@ -96,9 +96,15 @@ spec:
         - name: ADMIN_AUTHENTICATION_ENABLED
           value: "${ADMIN_AUTHENTICATION_ENABLED}"
         - name: ADMIN_USERNAME
-          value: "${ADMIN_USERNAME}"
+          valueFrom:
+            secretKeyRef:
+              name: showcase-admin-creds
+              key: ADMIN_USERNAME
         - name: ADMIN_PASSWORD
-          value: "${ADMIN_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: showcase-admin-creds
+              key: ADMIN_PASSWORD
         - name: PROJECT_NAME
           value: "${PROJECT_NAME}"
         - name: REGION
