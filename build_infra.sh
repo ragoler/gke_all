@@ -102,6 +102,13 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${PROJECT_ID}.svc.id.goog/subject/ns/gke-showcase-sandbox/sa/default" \
     --condition=None || echo "WIF binding mapped or failed, continuing..."
 
+# Grant GKE nodes read access to Artifact Registry in the same project
+echo "Configuring Artifact Registry read permissions for GKE nodes..."
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --role="roles/artifactregistry.reader" \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --condition=None || echo "Registry IAM role binding skipped or failed, continuing..."
+
 # Provision admin Namespace
 echo "Creating admin namespace..."
 kubectl create namespace gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -

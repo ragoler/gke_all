@@ -46,6 +46,7 @@ echo "Creating Artifact Registry Docker repository if it doesn't exist..."
 gcloud artifacts repositories create "$REPO_NAME" \
     --repository-format=docker \
     --location="$REGION" \
+    --project="$PROJECT_ID" \
     --description="Docker repository for GKE Feature Showcase Hub showcases" || echo "Repository already exists or skipped, continuing..."
 
 echo "Authenticating Docker daemon to Artifact Registry..."
