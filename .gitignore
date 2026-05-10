@@ -1,0 +1,19 @@
+# Dynamic environment parameters
+.env
+
+# Local SQLite persistent database
+data/
+showcase_admin/data/
+
+# Python local directories
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+
+# OS specific files
+.DS_Store
+Thumbs.db
