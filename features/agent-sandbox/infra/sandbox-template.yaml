@@ -1,0 +1,58 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: agent-sandbox-template
+  namespace: ${NAMESPACE}
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app: demo-agent
+    spec:
+      runtimeClassName: gvisor
+      serviceAccountName: default # WIF is bound dynamically to the default account or dynamically-configured SA
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+      nodeSelector:
+        sandbox.gke.io/runtime: gvisor
+      tolerations:
+      - key: sandbox.gke.io/runtime
+        operator: Equal
+        value: gvisor
+        effect: NoSchedule
+      containers:
+      - name: demo-app
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/agent-sandbox-demo:latest
+        ports:
+        - containerPort: 8888
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "${PROJECT_NAME}"
+        - name: REGION
+          value: "${REGION}"
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "${GOOGLE_GENAI_USE_VERTEXAI}"
+        # Optional variables for inter-showcase local vLLM routing
+        - name: OPENAI_API_BASE
+          value: "http://vllm-service.gke-showcase-inference.svc.cluster.local:8000/v1"
+        - name: MODEL_NAME
+          value: "gemma-2b-it"
+        # API Key Fallback secret - configured as optional
+        - name: GEMINI_API_KEY
+          valueFrom:
+              secretKeyRef:
+                name: gemini-api-key
+                key: GEMINI_API_KEY
+                optional: true
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+      restartPolicy: OnFailure

@@ -69,26 +69,26 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 
 ---
 
-### [ ] Milestone 5: Showcase Feature 1 - Dynamic GKE Agent Sandbox (WIF / local vLLM)
+### [x] Milestone 5: Showcase Feature 1 - Dynamic GKE Agent Sandbox (WIF / local vLLM)
 *   **Objective**: Package the GKE Agent Sandbox showcase with dynamic namespace creation, custom UI playroom, and inter-showcase local vLLM model routing options.
 *   **Description**: Modularizes sandbox templates and router codes from `AgentSandboxExample`, enabling deployment to custom user namespaces. Implements UI toggles for WIF-Gemini vs local vLLM service communication.
 *   **Tasks**:
-    - `[ ]` Package `features/agent-sandbox/` sources (router, demo-app, and infra templates).
-    - `[ ]` Implement environment variable mapping in manifests for dual LLM provider configurations.
-    - `[ ]` Develop an embedded sandbox playroom chat UI enabling users to spawn sandboxes and toggle between calling Cloud Gemini or local vLLM URLs.
+    - `[x]` Package `features/agent-sandbox/` sources (router, demo-app, and infra templates).
+    - `[x]` Implement environment variable mapping in manifests for dual LLM provider configurations.
+    - `[x]` Develop an embedded sandbox playroom chat UI enabling users to spawn sandboxes and toggle between calling Cloud Gemini or local vLLM URLs.
 *   **Success Criteria**:
     - Deploys successfully to user-specified namespaces.
     - Playroom correctly resolves local cluster DNS addresses (e.g. `http://vllm-service.<namespace>.svc.cluster.local`) when routing queries locally.
 
 ---
 
-### [ ] Milestone 6: Showcase Feature 2 - Spot GPU & vLLM Model Inference
+### [x] Milestone 6: Showcase Feature 2 - Spot GPU & vLLM Model Inference
 *   **Objective**: Package the vLLM Inference showcase with dynamic namespaces, L4 GPU Spot configurations, GCSFuse volume mapping, and a chat playground.
 *   **Description**: Outlines vLLM manifests, configures Spot node tolerations, structures read-only GCSFuse mounts, and designs a beautiful inline token streaming playground.
 *   **Tasks**:
-    - `[ ]` Package the vLLM code, templates, and CSS chat client under `features/gpu-inference/`.
-    - `[ ]` Setup manifests in `features/gpu-inference/infra/` utilizing Spot GPU schedulers and GCSFuse bucket configs.
-    - `[ ]` Wire the model server routes to register local service targets.
+    - `[x]` Package the vLLM code, templates, and CSS chat client under `features/gpu-inference/`.
+    - `[x]` Setup manifests in `features/gpu-inference/infra/` utilizing Spot GPU schedulers and GCSFuse bucket configs.
+    - `[x]` Wire the model server routes to register local service targets.
 *   **Success Criteria**:
     - Provisions the inference namespace and mounts the weight storage dynamically.
     - Exposes an inline chat playroom streaming tokens, and provides a stable cluster-local service DNS.

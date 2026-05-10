@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-service
+  namespace: ${NAMESPACE}
+spec:
+  type: ClusterIP
+  selector:
+    app: gpu-inference
+  ports:
+  - name: model-api
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-playroom-svc
+  namespace: ${NAMESPACE}
+spec:
+  type: ClusterIP
+  selector:
+    app: gpu-inference
+  ports:
+  - name: web
+    protocol: TCP
+    port: 8080
+    targetPort: 8000

@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-router-svc
+  namespace: ${NAMESPACE}
+spec:
+  type: ClusterIP
+  selector:
+    app: sandbox-router
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-router-deployment
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-router
+  template:
+    metadata:
+      labels:
+        app: sandbox-router
+    spec:
+      containers:
+      - name: router
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/agent-sandbox-router:latest
+        env:
+        - name: PROXY_TIMEOUT_SECONDS
+          value: "180"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"

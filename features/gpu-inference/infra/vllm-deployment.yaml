@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-inference-deployment
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-inference
+  template:
+    metadata:
+      labels:
+        app: gpu-inference
+      annotations:
+        # Enable GCS FUSE CSI driver automatic injection
+        gke-gcsfuse/volumes: "true"
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+        cloud.google.com/gke-gpu-driver-version: default
+        accelerator: nvidia-l4 # Target Nvidia L4 GPUs
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "sku"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      containers:
+      # Container 1: vLLM Model Server
+      - name: vllm-server
+        image: vllm/vllm-openai:latest
+        args:
+        - "--model"
+        - "/data/model"
+        - "--port"
+        - "8000"
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: model-weights
+          mountPath: /data/model
+          readOnly: true
+      # Container 2: Playground Chat Client
+      - name: playroom-app
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/gpu-inference-playroom:latest
+        env:
+        - name: VLLM_API_URL
+          value: "http://localhost:8000/v1"
+        - name: MODEL_NAME
+          value: "gemma-2b-it"
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+      volumes:
+      # Cloud Storage FUSE GCS bucket volume mount mapping
+      - name: model-weights
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          volumeAttributes:
+            bucketName: ${GCS_MODEL_BUCKET}
+            mountOptions: "implicit-dirs"
