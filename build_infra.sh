@@ -45,22 +45,11 @@ else
       --workload-pool="${PROJECT_ID}.svc.id.goog"
 fi
 
-# 2. Enable GKE Cluster features (Agent Sandbox & Gateway API sequentially)
-echo "Enabling GKE Agent Sandbox capability..."
-gcloud beta container clusters update "$CLUSTER_NAME" \
-    --region="$REGION" \
-    --enable-agent-sandbox
-
-echo "Enabling GKE Gateway API capability..."
-gcloud beta container clusters update "$CLUSTER_NAME" \
-    --region="$REGION" \
-    --gateway-api=standard
-
-# 3. Retrieve cluster credentials
+# 2. Retrieve cluster credentials
 echo "Importing GKE context credentials locally..."
 gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$REGION"
 
-# 4. Configure Workload Identity bindings for Vertex AI
+# 3. Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 
@@ -70,7 +59,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${PROJECT_ID}.svc.id.goog/subject/ns/gke-showcase-sandbox/sa/default" \
     --condition=None || echo "WIF binding mapped or failed, continuing..."
 
-# 5. Provision admin Namespace and Shared Gateway
+# 4. Provision admin Namespace and secure secrets
 echo "Creating admin namespace..."
 kubectl create namespace gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
 
@@ -79,9 +68,6 @@ kubectl create secret generic showcase-admin-creds \
     --from-literal=ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
     --from-literal=ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin-password}" \
     -n gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
-
-echo "Applying shared gateway configuration..."
-kubectl apply -f infra/gateway.yaml
 
 # 6. Setup Showcase Admin Dashboard PVC & Deployments
 echo "Deploying Showcase Admin Hub..."

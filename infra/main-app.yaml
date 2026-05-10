@@ -61,12 +61,12 @@ metadata:
   name: showcase-admin-svc
   namespace: gke-showcase-admin
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: showcase-admin
   ports:
   - protocol: TCP
-    port: 8000
+    port: 80
     targetPort: 8000
 ---
 apiVersion: apps/v1
@@ -122,21 +122,3 @@ spec:
       - name: db-storage
         persistentVolumeClaim:
           claimName: showcase-admin-pvc
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: showcase-admin-route
-  namespace: gke-showcase-admin
-spec:
-  parentRefs:
-  - name: external-http-gateway
-    namespace: gke-showcase-admin
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /
-    backendRefs:
-    - name: showcase-admin-svc
-      port: 8000

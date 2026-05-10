@@ -28,7 +28,7 @@ def expand_template(content: str, vars_dict: dict) -> str:
         return vars_dict.get(var_name, match.group(0))
     return pattern.sub(replacer, content)
 
-# Asynchronously run gcloud shell commands to manage node pools dynamically
+# Asynchronously run gcloud shell commands to manage GKE capabilities dynamically
 async def run_gcloud_cmd(args: list) -> str:
     proc = await asyncio.create_subprocess_exec(
         "gcloud", *args,
@@ -134,10 +134,46 @@ async def deploy_showcase(name: str, namespace: str, db_session, SessionLocal=No
     else:
         await init_k8s_connection()
         
-        # 1. DYNAMICALLY PROVISION SPECIALIZED GKE NODE POOLS ON-DEMAND
+        # 1. DYNAMICALLY ACTIVATE GKE CLUSTER-WIDE CAPABILITIES ON-DEMAND
+        # A. Enable GKE Gateway API capability if not already active (used by both showcases)
+        check_gateway = await run_gcloud_cmd([
+            "container", "clusters", "describe", config.CLUSTER_NAME,
+            "--region", config.REGION,
+            "--format=value(addonsConfig.gatewayApiConfig.channel)"
+        ])
+        if "STANDARD" not in check_gateway.upper():
+            await run_gcloud_cmd([
+                "container", "clusters", "update", config.CLUSTER_NAME,
+                "--region", config.REGION,
+                "--gateway-api=standard"
+            ])
+            
+        # Apply the shared external HTTP Gateway manifest dynamically (first deployer maps it)
+        gateway_infra_file = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'infra', 'gateway.yaml'
+        )
+        if os.path.exists(gateway_infra_file):
+            with open(gateway_infra_file, 'r') as f:
+                gateway_content = f.read()
+            await apply_yaml_manifests("gke-showcase-admin", gateway_content)
+        
+        # B. Enable GKE Agent Sandbox capability (Only for sandbox feature)
         if name == "agent-sandbox":
+            check_sandbox = await run_gcloud_cmd([
+                "container", "clusters", "describe", config.CLUSTER_NAME,
+                "--region", config.REGION,
+                "--format=value(addonsConfig.agentSandboxConfig.enabled)"
+            ])
+            if "TRUE" not in check_sandbox.upper():
+                await run_gcloud_cmd([
+                    "container", "clusters", "update", config.CLUSTER_NAME,
+                    "--region", config.REGION,
+                    "--enable-agent-sandbox"
+                ])
+                
+            # Provision specialized gVisor pool dynamically
             pool_name = "showcase-gvisor-pool"
-            # Check if pool already exists via gcloud
             check_pool = await run_gcloud_cmd([
                 "container", "node-pools", "list",
                 "--cluster", config.CLUSTER_NAME,
@@ -145,7 +181,6 @@ async def deploy_showcase(name: str, namespace: str, db_session, SessionLocal=No
                 "--format=value(name)"
             ])
             if pool_name not in check_pool:
-                # Dynamically spin up gVisor pool
                 await run_gcloud_cmd([
                     "container", "node-pools", "create", pool_name,
                     "--cluster", config.CLUSTER_NAME,
@@ -156,6 +191,7 @@ async def deploy_showcase(name: str, namespace: str, db_session, SessionLocal=No
                 ])
         
         elif name == "gpu-inference":
+            # Provision Spot GPU pool dynamically
             pool_name = "showcase-gpu-pool"
             check_pool = await run_gcloud_cmd([
                 "container", "node-pools", "list",
@@ -164,7 +200,6 @@ async def deploy_showcase(name: str, namespace: str, db_session, SessionLocal=No
                 "--format=value(name)"
             ])
             if pool_name not in check_pool:
-                # Dynamically spin up Spot GPU pool
                 await run_gcloud_cmd([
                     "container", "node-pools", "create", pool_name,
                     "--cluster", config.CLUSTER_NAME,
@@ -249,7 +284,6 @@ async def teardown_showcase(name: str, namespace: str, db_session):
                 "--quiet"
             ])
         except Exception as e:
-            # If pool already deleted or not found, ignore
             pass
             
     return showcase
