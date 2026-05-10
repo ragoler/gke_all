@@ -15,16 +15,16 @@ The system segregates different showcases in the same cluster by provisioning th
 
 ```mermaid
 graph TD
-    subgraph User Access [User Access]
+    subgraph UserAccess [User Access]
         Client([Web Browser])
     end
 
-    subgraph GKE Cluster [GKE Showcase Cluster]
-        subgraph Gateway Layer [GKE Gateway API]
+    subgraph GKECluster [GKE Showcase Cluster]
+        subgraph GatewayLayer [Gateway Layer]
             CoreGateway[external-http-gateway]
         end
 
-        subgraph Admin Namespace [Namespace: gke-showcase-admin]
+        subgraph AdminNamespace [Namespace: gke-showcase-admin]
             DashboardApp[Showcase Admin FastAPI Backend]
             DashboardUI[Showcase Hub Premium UI]
             LocalDB[(SQLite on Persistent Disk /data/showcase.db)]
@@ -33,7 +33,7 @@ graph TD
             DashboardApp -->|Reads/Writes| LocalDB
         end
 
-        subgraph Sandbox Showcase [Namespace: gke-showcase-sandbox]
+        subgraph SandboxShowcase [Namespace: gke-showcase-sandbox]
             SandboxRouter[Sandbox Router]
             WarmPool[SandboxWarmPool]
             SandboxClaim[Dynamic SandboxClaim]
@@ -41,7 +41,7 @@ graph TD
             SandboxRouter -->|Routes to| SandboxPod
         end
 
-        subgraph Inference Showcase [Namespace: gke-showcase-inference]
+        subgraph InferenceShowcase [Namespace: gke-showcase-inference]
             vLLM[vLLM Model Server]
             GCSFuse[GCS FUSE CSI Driver]
             InferenceGateway[Inference Gateway Routing]
@@ -50,7 +50,7 @@ graph TD
         end
     end
 
-    subgraph External Services [Google Cloud Platform]
+    subgraph ExternalServices [Google Cloud Platform]
         VertexAI[Vertex AI / Gemini API]
         ArtifactRegistry[Artifact Registry: gke-showcase-repo]
         GCSWeights[(GCS Model Weights Bucket)]
@@ -64,8 +64,8 @@ graph TD
 
     %% Controllers
     DashboardApp -->|K8s API: Orchestrate Namespaces| GKE_Control[GKE Control Plane]
-    GKE_Control -->|Deploys/Tears Down| Sandbox Showcase
-    GKE_Control -->|Deploys/Tears Down| Inference Showcase
+    GKE_Control -->|Deploys/Tears Down| SandboxShowcase
+    GKE_Control -->|Deploys/Tears Down| InferenceShowcase
 
     %% External integrations
     SandboxPod -->|WIF| VertexAI
