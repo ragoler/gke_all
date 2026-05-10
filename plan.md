@@ -43,26 +43,26 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 
 ---
 
-### [ ] Milestone 3: Asynchronous GKE Controller (Mock/Real Client)
+### [x] Milestone 3: Asynchronous GKE Controller (Mock/Real Client)
 *   **Objective**: Build the asynchronous GKE dynamic resource orchestrator supporting custom namespaces, deletion calls, and simulated offline states.
 *   **Description**: Implements `k8s_client.py` to dynamically apply and delete templates in custom user-specified namespaces. Supports a simulated offline manager (`MODE=MOCK`) that mimics namespace lifecycle transitions and streams diagnostic logs.
 *   **Tasks**:
-    - `[ ]` Implement `showcase_admin/app/k8s_client.py` supporting dynamic namespace provisioning and resource deletions.
-    - `[ ]` Build mock GKE client controllers inside `k8s_client.py` to simulate state loops for custom namespaces.
-    - `[ ]` Implement `/tests/integration/test_k8s_mock.py` and `/tests/integration/test_api_mock.py`.
+    - `[x]` Implement `showcase_admin/app/k8s_client.py` supporting dynamic namespace provisioning and resource deletions.
+    - `[x]` Build mock GKE client controllers inside `k8s_client.py` to simulate state loops for custom namespaces.
+    - `[x]` Implement `/tests/integration/test_k8s_mock.py` and `/tests/integration/test_api_mock.py`.
 *   **Success Criteria**:
     - Integration tests pass 100% in the virtual environment without cloud resources.
     - Confirm dynamic namespaces and resources are mapped and mocked correctly.
 
 ---
 
-### [ ] Milestone 4: Premium Showcase Hub Dashboard UI
+### [x] Milestone 4: Premium Showcase Hub Dashboard UI
 *   **Objective**: Design the premium single-page HTML/CSS/JS dashboard frontend with user namespace inputs, delete buttons, reach out URLs, and playroom interaction overlays.
 *   **Description**: Develops the dark-theme layout, adding text inputs for namespace selection, "Open Playroom" toggle overlays, "Delete Showcase" actions, and log polling frames.
 *   **Tasks**:
-    - `[ ]` Design `showcase_admin/frontend/index.html` adding custom namespace input forms, active reach out URL links, and inline console panels.
-    - `[ ]` Develop `showcase_admin/frontend/style.css` featuring premium glassmorphism variables and glowing status micro-animations.
-    - `[ ]` Develop `showcase_admin/frontend/app.js` to handle authenticated CRUD triggers, poll namespaces, and stream diagnostic outputs.
+    - `[x]` Design `showcase_admin/frontend/index.html` adding custom namespace input forms, active reach out URL links, and inline console panels.
+    - `[x]` Develop `showcase_admin/frontend/style.css` featuring premium glassmorphism variables and glowing status micro-animations.
+    - `[x]` Develop `showcase_admin/frontend/app.js` to handle authenticated CRUD triggers, poll namespaces, and stream diagnostic outputs.
 *   **Success Criteria**:
     - Dashboard loads in mock mode showing custom namespace fields and reach-out URL hooks on each card.
     - Pressing "Tear Down" triggers confirmation alerts, fades components, and removes simulated namespaces successfully.

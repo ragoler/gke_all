@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GKE Feature Showcase Hub</title>
+    <!-- Google Fonts (Outfit & Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Premium Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header Section -->
+        <header class="main-header">
+            <div class="logo-area">
+                <span class="brand-accent">GKE</span>
+                <span class="brand-title">Showcase Hub</span>
+            </div>
+            <div class="cluster-status">
+                <span class="pulse-indicator active"></span>
+                <span class="status-text">GKE Cluster Connection: Secure</span>
+            </div>
+        </header>
+
+        <!-- KPI Metrics Summary -->
+        <section class="metrics-bar">
+            <div class="metric-card">
+                <span class="metric-label">Active Showcases</span>
+                <span class="metric-value" id="metric-active-count">0</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Available Features</span>
+                <span class="metric-value" id="metric-total-count">2</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Global Cluster Mode</span>
+                <span class="metric-value" id="metric-cluster-mode">MOCK</span>
+            </div>
+        </section>
+
+        <!-- Main Feature Grid -->
+        <main class="features-grid" id="features-grid">
+            <!-- Feature Cards will be injected dynamically by app.js -->
+            <div class="card-skeleton">Loading feature showcases...</div>
+        </main>
+    </div>
+
+    <!-- Console Modal Overlay -->
+    <div class="modal-overlay" id="console-modal">
+        <div class="console-panel">
+            <div class="console-header">
+                <span class="console-title" id="console-showcase-title">Agent Sandbox Logs</span>
+                <button class="close-console-btn" id="close-console-btn">&times;</button>
+            </div>
+            <div class="console-body" id="console-log-stream">
+                [SYSTEM] Loading diagnostic stream...
+            </div>
+            <div class="console-footer">
+                <span class="console-meta" id="console-namespace-meta">Namespace: default</span>
+                <button class="refresh-logs-btn" id="refresh-logs-btn">Refresh Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic Frontend Javascript -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
