@@ -45,11 +45,15 @@ else
       --workload-pool="${PROJECT_ID}.svc.id.goog"
 fi
 
-# 2. Enable GKE Cluster features (Agent Sandbox & Gateway API)
-echo "Updating cluster capabilities (Agent Sandbox & Gateway API)..."
+# 2. Enable GKE Cluster features (Agent Sandbox & Gateway API sequentially)
+echo "Enabling GKE Agent Sandbox capability..."
 gcloud beta container clusters update "$CLUSTER_NAME" \
     --region="$REGION" \
-    --enable-agent-sandbox \
+    --enable-agent-sandbox
+
+echo "Enabling GKE Gateway API capability..."
+gcloud beta container clusters update "$CLUSTER_NAME" \
+    --region="$REGION" \
     --gateway-api=standard
 
 # 3. Retrieve cluster credentials
