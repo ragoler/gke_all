@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gke-showcase-admin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: showcase-admin-sa
+  namespace: gke-showcase-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: showcase-admin-role
+rules:
+# Full namespace and resource creation capability for dynamically installing showcase features
+- apiGroups: [""]
+  resources: ["namespaces", "services", "serviceaccounts", "secrets", "configmaps", "pods", "pods/log"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Custom resource integrations
+- apiGroups: ["extensions.agents.x-k8s.io"]
+  resources: ["sandboxtemplates", "sandboxclaims", "sandboxwarmpools"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["httproutes", "gateways"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: showcase-admin-role-binding
+subjects:
+- kind: ServiceAccount
+  name: showcase-admin-sa
+  namespace: gke-showcase-admin
+roleRef:
+  kind: ClusterRole
+  name: showcase-admin-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: showcase-admin-pvc
+  namespace: gke-showcase-admin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard-rwo # Persistent Disk Standard-RWO
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: showcase-admin-svc
+  namespace: gke-showcase-admin
+spec:
+  type: ClusterIP
+  selector:
+    app: showcase-admin
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: showcase-admin-deployment
+  namespace: gke-showcase-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: showcase-admin
+  template:
+    metadata:
+      labels:
+        app: showcase-admin
+    spec:
+      serviceAccountName: showcase-admin-sa
+      containers:
+      - name: showcase-admin
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/showcase-admin:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MODE
+          value: "REAL"
+        - name: ADMIN_AUTHENTICATION_ENABLED
+          value: "${ADMIN_AUTHENTICATION_ENABLED}"
+        - name: ADMIN_USERNAME
+          value: "${ADMIN_USERNAME}"
+        - name: ADMIN_PASSWORD
+          value: "${ADMIN_PASSWORD}"
+        - name: PROJECT_NAME
+          value: "${PROJECT_NAME}"
+        - name: REGION
+          value: "${REGION}"
+        - name: ARTIFACT_REGISTRY_REPO
+          value: "${ARTIFACT_REGISTRY_REPO}"
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "${GOOGLE_GENAI_USE_VERTEXAI}"
+        - name: GEMINI_API_KEY
+          value: "${GEMINI_API_KEY}"
+        volumeMounts:
+        - name: db-storage
+          mountPath: /data
+      volumes:
+      - name: db-storage
+        persistentVolumeClaim:
+          claimName: showcase-admin-pvc
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: showcase-admin-route
+  namespace: gke-showcase-admin
+spec:
+  parentRefs:
+  - name: external-http-gateway
+    namespace: gke-showcase-admin
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: showcase-admin-svc
+      port: 8000

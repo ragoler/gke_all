@@ -95,14 +95,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 
 ---
 
-### [ ] Milestone 7: Production GKE Bootstrapping & Live Integration Verification
+### [x] Milestone 7: Production GKE Bootstrapping & Live Integration Verification
 *   **Objective**: Script the real GKE cluster bootstrap, Gateway routes, persistent PVC volumes, and perform live multi-showcase validation.
 *   **Description**: Develops the automated `build_infra.sh` script to create cluster and shared services, builds images using `scripts/build_and_push.sh`, and runs full end-to-end functional tests.
 *   **Tasks**:
-    - `[ ]` Create `scripts/build_and_push.sh` building and pushing all container images.
-    - `[ ]` Create `build_infra.sh` bootstrapping GKE with GPU, gVisor nodes, persistent disk PVCs, and gateways.
-    - `[ ]` Deploy the Showcase Admin Dashboard pod.
-    - `[ ]` Run End-to-End verification: Deploy Sandbox & GPU inference to custom namespaces, verify vLLM chat streaming, verify local sandbox-to-vLLM cluster routing, and verify teardown deletions.
+    - `[x]` Create `scripts/build_and_push.sh` building and pushing all container images.
+    - `[x]` Create `build_infra.sh` bootstrapping GKE with GPU, gVisor nodes, persistent disk PVCs, and gateways.
+    - `[x]` Deploy the Showcase Admin Dashboard pod.
+    - `[x]` Run End-to-End verification: Deploy Sandbox & GPU inference to custom namespaces, verify vLLM chat streaming, verify local sandbox-to-vLLM cluster routing, and verify teardown deletions.
 *   **Success Criteria**:
     - Running `build_infra.sh` deploys the entire cluster, shared services, and dashboard cleanly.
     - Dynamic custom namespace creation, teardown, and inter-showcase service calls work perfectly under live GKE testing.
