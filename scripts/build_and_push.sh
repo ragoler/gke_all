@@ -68,16 +68,12 @@ build_sandbox_demo() {
 
 build_sandbox_router() {
   echo ">>> Building Sandbox Router container..."
-  # Clones and builds the sandbox router. If upstream router is not locally cloned,
-  # we build a lightweight reverse proxy or pull standard upstream.
-  # In AgentSandboxExample, they did deploy_sandbox_router.sh which clones:
-  # github.com/GoogleCloudPlatform/gke-agent-sandbox.git and builds the router.
-  # Let's automate this!
+  # Clones and builds the sandbox router from the official upstream Kubernetes-SIGs repository
   TMP_DIR=$(mktemp -d)
-  echo "Cloning upstream agent-sandbox router repo into ${TMP_DIR}..."
-  git clone https://github.com/GoogleCloudPlatform/gke-agent-sandbox.git "$TMP_DIR"
+  echo "Cloning upstream kubernetes-sigs/agent-sandbox repo into ${TMP_DIR}..."
+  git clone https://github.com/kubernetes-sigs/agent-sandbox.git "$TMP_DIR"
   
-  docker build -t "${REGISTRY}/agent-sandbox-router:latest" "${TMP_DIR}/sandbox-router"
+  docker build -t "${REGISTRY}/agent-sandbox-router:latest" "${TMP_DIR}/clients/python/agentic-sandbox-client/sandbox-router"
   docker push "${REGISTRY}/agent-sandbox-router:latest"
   rm -rf "$TMP_DIR"
   echo ">>> Sandbox Router container pushed successfully."
