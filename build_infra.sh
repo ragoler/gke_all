@@ -25,13 +25,56 @@ if [ -z "$CLUSTER_NAME" ]; then
   exit 1
 fi
 
+# Parse command-line arguments
+DESTROY_MODE=false
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --destroy) DESTROY_MODE=true ;;
+    *) echo "Unknown parameter: $1"; echo "Usage: ./build_infra.sh [--destroy]"; exit 1 ;;
+  esac
+  shift
+done
+
+# ----------------------------------------------------------------------
+# 1. DESTROY MODE: Cleanup all GCP resources cleanly
+# ----------------------------------------------------------------------
+if [ "$DESTROY_MODE" = "true" ]; then
+  echo "======================================================================"
+  echo " DESTROYING GKE FEATURE SHOWCASE INFRASTRUCTURE: ${CLUSTER_NAME}"
+  echo "======================================================================"
+  
+  if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
+    echo "Deleting GKE Cluster $CLUSTER_NAME in region $REGION..."
+    gcloud container clusters delete "$CLUSTER_NAME" --region="$REGION" --quiet
+    echo "Cluster $CLUSTER_NAME deleted successfully."
+  else
+    echo "Cluster $CLUSTER_NAME does not exist, skipping cluster deletion."
+  fi
+  
+  if gcloud artifacts repositories describe "$ARTIFACT_REGISTRY_REPO" --location="$REGION" >/dev/null 2>&1; then
+    echo "Deleting Artifact Registry repository $ARTIFACT_REGISTRY_REPO in location $REGION..."
+    gcloud artifacts repositories delete "$ARTIFACT_REGISTRY_REPO" --location="$REGION" --quiet
+    echo "Repository $ARTIFACT_REGISTRY_REPO deleted successfully."
+  else
+    echo "Repository $ARTIFACT_REGISTRY_REPO does not exist, skipping repository deletion."
+  fi
+  
+  echo "======================================================================"
+  echo " Cleanup completed successfully!"
+  echo "======================================================================"
+  exit 0
+fi
+
+# ----------------------------------------------------------------------
+# 2. BOOTSTRAP MODE: Provision baseline GKE Cluster
+# ----------------------------------------------------------------------
 echo "======================================================================"
 echo " BOOTSTRAPPING GKE FEATURE SHOWCASE CLUSTER: ${CLUSTER_NAME}"
 echo " NOTE: Specialized Node Pools (gVisor & GPUs) are NOT created here."
 echo " They will be provisioned dynamically when their features are deployed."
 echo "======================================================================"
 
-# 1. Create GKE Standard Cluster with a standard default node pool and Workload Identity
+# Base cluster creation
 if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
   echo "Cluster $CLUSTER_NAME already exists, skipping cluster creation."
 else
@@ -45,11 +88,11 @@ else
       --workload-pool="${PROJECT_ID}.svc.id.goog"
 fi
 
-# 2. Retrieve cluster credentials
+# Retrieve GKE cluster credentials
 echo "Importing GKE context credentials locally..."
 gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$REGION"
 
-# 3. Configure Workload Identity bindings for Vertex AI
+# Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 
@@ -59,7 +102,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${PROJECT_ID}.svc.id.goog/subject/ns/gke-showcase-sandbox/sa/default" \
     --condition=None || echo "WIF binding mapped or failed, continuing..."
 
-# 4. Provision admin Namespace and secure secrets
+# Provision admin Namespace
 echo "Creating admin namespace..."
 kubectl create namespace gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
 
@@ -69,7 +112,7 @@ kubectl create secret generic showcase-admin-creds \
     --from-literal=ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin-password}" \
     -n gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
 
-# 6. Setup Showcase Admin Dashboard PVC & Deployments
+# Setup Showcase Admin DashboardPVC & Deployments
 echo "Deploying Showcase Admin Hub..."
 export PROJECT_NAME="$PROJECT_ID"
 export REGION
