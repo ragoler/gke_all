@@ -425,8 +425,11 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     if config.MODE == "MOCK":
         return f"[{claim_id}] Mock reply using model routing '{provider}': Recieved your prompt '{message}'."
         
-    gateway_ip = await get_gateway_ip()
-    url = f"http://{gateway_ip}/sandbox/message"
+    if config.SANDBOX_ROUTER_URL:
+        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/message"
+    else:
+        gateway_ip = await get_gateway_ip()
+        url = f"http://{gateway_ip}/sandbox/message"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -452,8 +455,11 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     if config.MODE == "MOCK":
         return f"\"The best way to predict the future is to invent it.\" - Routed via GKE Sandbox [{claim_id}] using provider '{provider}'."
         
-    gateway_ip = await get_gateway_ip()
-    url = f"http://{gateway_ip}/sandbox/quote"
+    if config.SANDBOX_ROUTER_URL:
+        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/quote"
+    else:
+        gateway_ip = await get_gateway_ip()
+        url = f"http://{gateway_ip}/sandbox/quote"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -474,8 +480,11 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
     if config.MODE == "MOCK":
         return f"[MOCK INFERENCE] Hello! You asked: '{prompt}'. This response has been simulated in mock mode."
         
-    gateway_ip = await get_gateway_ip()
-    url = f"http://{gateway_ip}/inference/chat"
+    if config.SANDBOX_ROUTER_URL:
+        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/inference/chat"
+    else:
+        gateway_ip = await get_gateway_ip()
+        url = f"http://{gateway_ip}/inference/chat"
     
     async with httpx.AsyncClient() as client_http:
         try:

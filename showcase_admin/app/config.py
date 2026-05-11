@@ -21,6 +21,7 @@ MACHINE_TYPE = os.getenv("MACHINE_TYPE", "e2-standard-2")
 ARTIFACT_REGISTRY_REPO = os.getenv("ARTIFACT_REGISTRY_REPO", "gke-showcase-repo")
 
 GATEWAY_NAME = os.getenv("GATEWAY_NAME", "external-http-gateway")
+SANDBOX_ROUTER_URL = os.getenv("SANDBOX_ROUTER_URL", "")
 
 GOOGLE_GENAI_USE_VERTEXAI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").upper() == "TRUE"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
