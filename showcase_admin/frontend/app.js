@@ -38,6 +38,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Helper to calculate and format elapsed time strings
+    function getElapsedTimeString(installedAtStr) {
+        if (!installedAtStr) return "";
+        const installedAt = new Date(installedAtStr);
+        const now = new Date();
+        const diffMs = now - installedAt;
+        if (diffMs < 0) return "0s";
+        
+        const totalSecs = Math.floor(diffMs / 1000);
+        const mins = Math.floor(totalSecs / 60);
+        const secs = totalSecs % 60;
+        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    }
+
     // Render dynamic GKE showcases grid
     function renderFeatures(showcases) {
         featuresGrid.innerHTML = "";
@@ -70,11 +84,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 activeCount++;
                 const statusClass = item.status.toLowerCase();
                 
+                // Inject dynamic elapsed timer if in DEPLOYING state
+                const statusText = item.status === "DEPLOYING" 
+                    ? `DEPLOYING (<span class="elapsed-timer" data-start="${item.installed_at}">${getElapsedTimeString(item.installed_at)}</span>)` 
+                    : item.status;
+                
                 statusControlHtml = `
                     <div class="active-panel">
                         <div class="status-row">
                             <span class="status-text">Namespace: <strong>${item.namespace}</strong></span>
-                            <span class="status-badge ${statusClass}">${item.status}</span>
+                            <span class="status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="action-buttons">
                             <button class="btn-secondary btn-logs" data-name="${item.name}">Open Console</button>
@@ -219,6 +238,17 @@ document.addEventListener("DOMContentLoaded", () => {
             fetchShowcases();
         }
     }, 2000);
+
+    // Active 1s interval updating elapsed timer values in real-time
+    setInterval(() => {
+        const timers = document.querySelectorAll(".elapsed-timer");
+        timers.forEach(t => {
+            const startStr = t.getAttribute("data-start");
+            if (startStr) {
+                t.textContent = getElapsedTimeString(startStr);
+            }
+        });
+    }, 1000);
 
     // Bootstrap Setup
     fetchShowcases();
