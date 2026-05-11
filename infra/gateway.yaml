@@ -4,7 +4,8 @@ metadata:
   name: external-http-gateway
   namespace: gke-showcase-admin
 spec:
-  gatewayClassName: gke-l7-gxlb
+  # Upgrade gatewayClassName to Envoy-based Managed L7 load balancer to support URLRewrite filters!
+  gatewayClassName: gke-l7-global-external-managed
   listeners:
   - name: http
     protocol: HTTP
