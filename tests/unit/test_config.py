@@ -5,10 +5,16 @@ from unittest import mock
 # Ensure showcase-admin is in the python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+# Safe side-effect to mock only .env exists checks
+def mock_exists_side_effect(path):
+    if isinstance(path, str) and ".env" in path:
+        return False
+    return True
+
 def test_config_defaults():
     # Mock env and prevent loading the filesystem .env file
     with mock.patch.dict(os.environ, {}, clear=True), \
-         mock.patch("os.path.exists", return_value=False):
+         mock.patch("os.path.exists", side_effect=mock_exists_side_effect):
         # Reload config inside mock context
         import importlib
         import showcase_admin.app.config as config
@@ -29,7 +35,7 @@ def test_config_overrides():
     }
     # Mock env and prevent loading the filesystem .env file
     with mock.patch.dict(os.environ, custom_env, clear=True), \
-         mock.patch("os.path.exists", return_value=False):
+         mock.patch("os.path.exists", side_effect=mock_exists_side_effect):
         import importlib
         import showcase_admin.app.config as config
         importlib.reload(config)

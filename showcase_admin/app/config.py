@@ -1,24 +1,10 @@
 import os
+from dotenv import load_dotenv
 
-# Helper to load .env file if present
-def load_env_file():
-    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if '=' in line:
-                    key, val = line.split('=', 1)
-                    # Strip optional surrounding quotes
-                    key = key.strip()
-                    val = val.strip().strip('"').strip("'")
-                    if key and key not in os.environ:
-                        os.environ[key] = val
-
-# Load on module import
-load_env_file()
+# Load environment variables from explicit local .env path if present
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+if os.path.exists(env_path):
+    load_dotenv(dotenv_path=env_path)
 
 # Core settings exposed as variables
 MODE = os.getenv("MODE", "MOCK").upper()
@@ -40,4 +26,4 @@ GOOGLE_GENAI_USE_VERTEXAI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").uppe
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemma-2b-it")
-GCS_MODEL_BUCKET = os.getenv("GCS_MODEL_BUCKET", "")
+GCS_MODEL_BUCKET = os.getenv("GCS_MODEL_BUCKET", "vertex-model-garden-public-us")
