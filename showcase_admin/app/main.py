@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Body, status
+from fastapi import FastAPI, Depends, HTTPException, Body, status, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ import os
 import uuid
 import httpx
 import logging
+from datetime import datetime
 
 from showcase_admin.app import config, database, auth, k8s_client
 
@@ -115,6 +116,7 @@ async def list_showcases(db: Session = Depends(database.get_db)):
 @app.post("/api/showcases/{name}/deploy", dependencies=api_dependencies)
 async def deploy_feature(
     name: str, 
+    background_tasks: BackgroundTasks,
     body: dict = Body(default={"namespace": ""}), 
     db: Session = Depends(database.get_db)
 ):
@@ -122,21 +124,40 @@ async def deploy_feature(
         raise HTTPException(status_code=404, detail=f"Showcase '{name}' not supported.")
         
     namespace_override = body.get("namespace", "").strip()
-    showcase = await k8s_client.deploy_showcase(
+    target_ns = namespace_override if namespace_override else f"gke-showcase-{name}"
+    
+    # Immediately commit DEPLOYING status and release the request thread
+    showcase = db.query(database.ShowcaseModel).filter_by(name=name).first()
+    if not showcase:
+        showcase = database.ShowcaseModel(name=name)
+        db.add(showcase)
+    showcase.namespace = target_ns
+    showcase.status = "DEPLOYING"
+    showcase.reach_out_url = None
+    showcase.installed_at = datetime.utcnow()
+    db.commit()
+    
+    # Dispatch actual GKE deployment in the background
+    background_tasks.add_task(
+        k8s_client.deploy_showcase,
         name=name,
-        namespace=namespace_override,
-        db_session=db,
+        namespace=target_ns,
         SessionLocal=database.SessionLocal
     )
+    
     return {
-        "name": showcase.name,
-        "status": showcase.status,
-        "namespace": showcase.namespace,
-        "message": f"Showcase initiated in namespace '{showcase.namespace}'."
+        "name": name,
+        "status": "DEPLOYING",
+        "namespace": target_ns,
+        "message": f"Showcase deployment for '{AVAILABLE_SHOWCASES[name]['title']}' successfully initiated in the background."
     }
 
 @app.delete("/api/showcases/{name}/teardown", dependencies=api_dependencies)
-async def teardown_feature(name: str, db: Session = Depends(database.get_db)):
+async def teardown_feature(
+    name: str, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(database.get_db)
+):
     if name not in AVAILABLE_SHOWCASES:
         raise HTTPException(status_code=404, detail=f"Showcase '{name}' not supported.")
         
@@ -144,8 +165,26 @@ async def teardown_feature(name: str, db: Session = Depends(database.get_db)):
     if not showcase or showcase.status == "DORMANT":
         return {"name": name, "status": "DORMANT", "message": "Showcase already dormant."}
         
-    await k8s_client.teardown_showcase(name=name, namespace=showcase.namespace, db_session=db)
-    return {"name": name, "status": "DORMANT", "message": "Showcase cleanly torn down."}
+    # Immediately commit DORMANT status
+    target_ns = showcase.namespace
+    showcase.status = "DORMANT"
+    showcase.reach_out_url = None
+    showcase.namespace = None
+    db.commit()
+    
+    # Dispatch GKE teardown in the background
+    background_tasks.add_task(
+        k8s_client.teardown_showcase,
+        name=name,
+        namespace=target_ns,
+        SessionLocal=database.SessionLocal
+    )
+    
+    return {
+        "name": name,
+        "status": "DORMANT",
+        "message": "Showcase dynamic teardown initiated successfully."
+    }
 
 @app.get("/api/showcases/{name}/logs", dependencies=api_dependencies)
 async def get_logs(name: str, db: Session = Depends(database.get_db)):
