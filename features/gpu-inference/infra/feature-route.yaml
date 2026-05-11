@@ -12,6 +12,13 @@ spec:
     - path:
         type: PathPrefix
         value: /inference
+    filters:
+    # Dynamically strip the /inference prefix so GKE routes requests as '/' directly to the playroom service
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: inference-playroom-svc
       port: 8080

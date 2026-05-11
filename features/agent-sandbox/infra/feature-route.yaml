@@ -12,6 +12,13 @@ spec:
     - path:
         type: PathPrefix
         value: /sandbox
+    filters:
+    # Dynamically strip the /sandbox prefix so GKE routes the request as '/' directly to the router
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: sandbox-router-svc
       port: 8080
