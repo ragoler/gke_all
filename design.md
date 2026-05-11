@@ -127,30 +127,29 @@ Quality control is managed via an extensive automated testing suite running unde
 ### 3.4. Showcase Modules Specification (`/features`)
 Each showcase module is fully self-contained under `/features/<name>`. The Showcase Admin Dashboard enables the user to:
 1.  **Input a Custom Namespace**: Prior to deploying, the administrator can type a custom Kubernetes Namespace on the UI. The dynamic deploy endpoint (`POST /api/showcases/{name}/deploy`) accepts this namespace, creates it dynamically, and applies the feature manifests to it. If left blank, it defaults to `gke-showcase-{name}`.
-2.  **Delete / Tear Down**: The administrator can select "Tear Down Showcase" from the dashboard. This executes a clean, cascading deletion of the target namespace (`DELETE /api/showcases/{name}/teardown`), immediately freeing up all cluster compute and GKE resources.
-3.  **Access & Interaction Playrooms**: Each active card displays a dedicated "Reach Out URL" (the external HTTP Gateway routing path for that namespace) and opens an interactive "Playroom Console" directly within the Showcase Hub dashboard to let the user test the running module instantly.
+2.  **Delete / Tear Down**: The administrator can select "Tear Down Showcase" from the dashboard. This executes a clean, cascading deletion of the target namespace (`DELETE /api/showcases/{name}/teardown`), completely freeing up all cluster node pools and GKE resources.
+3.  **Dedicated Feature Playrooms (Exposed Workspaces)**: Rather than generic links, each active showcase card opens a **dedicated, tailored dynamic playroom UI** served by the admin app:
+    - **GKE Agent Sandbox Playroom**: served at `/features/agent-sandbox/`
+    - **GPU Model Inference Playroom**: served at `/features/gpu-inference/`
 
 #### Feature 1: GKE Agent Sandbox
 *   **Goal**: Demonstrate secure runtimes for isolated, dynamic agent workloads (untrusted code execution).
 *   **GKE Features Illustrated**: **GKE Agent Sandbox** (gVisor integration), `SandboxTemplate` / `SandboxClaims` CRDs, `SandboxWarmPool`, and inter-cluster service networking.
-*   **Interaction Playroom**: An embedded workspace console where users can:
-    - Create dynamic sandboxes on-demand (under 1 second).
-    - Message individual sandboxes.
-    - Trigger sleep/wake cycles.
-*   **Flexible Model Provider Integration (Dual Routing)**:
-    - When provisioning a sandbox, the user can select the LLM provider:
-        1.  **Cloud Vertex AI (Gemini)**: Sandbox pods authenticate via GKE Workload Identity Federation (using service account `sandbox-ai-sa` mapped to GCP `roles/aiplatform.user`).
-        2.  **Local Self-Hosted Inference (vLLM)**: Sandbox pods are dynamically configured to call the custom **vLLM Inference Showcase** running in the same cluster. The sandbox environment variables are set to route API requests locally:
-            *   `OPENAI_API_BASE=http://vllm-service.<vllm-namespace>.svc.cluster.local:8000/v1`
-            *   `MODEL_NAME=gemma-2b-it` (or any deployed model).
-            *   This completely avoids outbound internet traffic, showcasing safe, low-latency, local model inference within GKE's secure cluster boundary.
+*   **Embedded Playroom UI**: An advanced workspace dashboard (re-designed from `AgentSandboxExample`) allowing the user to:
+    - Allocate sandboxes instantly (utilizing the pre-warmed pool under 0.5 seconds).
+    - Message individual sandbox claims and receive inspirational quotes.
+    - Securely toggle the LLM backend provider between Vertex AI (Gemini) or the custom local **vLLM Inference Showcase** running in the same cluster!
+*   **Sandbox Management REST APIs**: To support the playroom UI, the Showcase Admin backend exposes dedicated sandbox manager endpoints:
+    - `GET /api/sandboxes`: Query and list active SandboxClaims.
+    - `POST /api/sandboxes`: Spin up a new SandboxClaim pod.
+    - `DELETE /api/sandboxes/{id}`: Delete a specific SandboxClaim pod.
+    - `POST /api/sandboxes/{id}/message`: Send user message to the sandbox.
+    - `POST /api/sandboxes/{id}/quote`: Request an inspiring quote from the sandbox model.
 
 #### Feature 2: vLLM GPU Model Inference
 *   **Goal**: Deploy a self-hosted, optimized open-source LLM (e.g., Gemma 2B) behind a shared inference gateway using Google-hosted Vertex AI Model Garden weights.
 *   **GKE Features Illustrated**: Dynamic GPU node pool provisioning, **Spot NVIDIA L4 GPU Node Pools**, **GCSFuse CSI Driver** (mounting public read-only GCS buckets directly into container filesystems), and GKE Gateway routing.
-*   **Architecture**:
-    - To completely eliminate GCS hosting costs and manual weight uploads, the vLLM pod mounts Google's official public Model Garden bucket (`vertex-model-garden-public-us`) as a read-only GCSFuse volume, loading model weights directly from `gemma/gemma-2b-it`.
-*   **Interaction Playroom**: An embedded chat playground client targeting the OpenAI-compatible API served by vLLM, showing direct response token streaming, model stats, and inference latency.
+*   **Embedded Playroom UI**: A gorgeous chatbot playground featuring fluid response token stream displays, direct metrics counters (VRAM load, generation latency, output tokens-per-second), and dynamic cluster-autoscaler node state visualizations.
 *   **Integration Output**: Exposes a stable cluster-internal service endpoint (`http://vllm-service.<vllm-namespace>.svc.cluster.local:8000`) which other showcases (like the Agent Sandbox) can leverage for local AI reasoning.
 
 ---

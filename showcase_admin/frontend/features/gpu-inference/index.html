@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vLLM GPU Playground</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .playground-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            height: 95vh;
+        }
+        .playground-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-standard);
+            padding-bottom: 1.25rem;
+        }
+        .btn-back {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-standard);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .btn-back:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .playground-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .chat-interface {
+            flex-grow: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border-standard);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        .chat-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-standard);
+            font-family: var(--font-header);
+            font-size: 1.1rem;
+            color: var(--cyan-neon);
+            text-shadow: 0 0 8px var(--cyan-glow);
+            background: rgba(0,0,0,0.1);
+        }
+        .chat-body {
+            flex-grow: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: #05080c;
+        }
+        .message {
+            padding: 0.75rem 1.25rem;
+            border-radius: 12px;
+            max-width: 80%;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .message.user {
+            background: #0088ff;
+            color: white;
+            align-self: flex-end;
+        }
+        .message.ai {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-standard);
+            color: #f3f4f6;
+            align-self: flex-start;
+        }
+        .input-area {
+            padding: 1rem;
+            border-top: 1px solid var(--border-standard);
+            display: flex;
+            gap: 0.75rem;
+            background: var(--bg-secondary);
+        }
+        .input-area input {
+            flex-grow: 1;
+            background: #05080c;
+            border: 1px solid var(--border-standard);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .input-area input:focus {
+            border-color: var(--cyan-neon);
+        }
+        .btn-send {
+            background: var(--cyan-neon);
+            border: none;
+            color: #090d16;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .btn-send:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="playground-container">
+        <header class="playground-header">
+            <div class="logo-area">
+                <span class="brand-accent">vLLM</span>
+                <span class="brand-title">GPU Playground</span>
+            </div>
+            <a href="/" class="btn-back">← Return to Hub</a>
+        </header>
+
+        <!-- Metrics Panel -->
+        <section class="playground-metrics">
+            <div class="metric-card">
+                <span class="metric-label">Serving Engine</span>
+                <span class="metric-value" style="color: #00e5ff;">vLLM Server</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">GKE Node Group</span>
+                <span class="metric-value" style="color: #10b981; font-size: 1.2rem; font-weight: bold;">NVIDIA L4 Spot</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Weight Mount</span>
+                <span class="metric-value" style="font-size: 0.95rem; word-break: break-all;">Vertex Model Garden</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Loaded Model</span>
+                <span class="metric-value" id="metric-model-name" style="font-size: 1.2rem; font-weight: bold; color: #f59e0b;">gemma-2b-it</span>
+            </div>
+        </section>
+
+        <!-- Chat Playground interface -->
+        <div class="chat-interface">
+            <div class="chat-header">Model Playground Console</div>
+            <div class="chat-body" id="chat-box">
+                <div class="message ai">Hello! I am a self-hosted open-source Gemma LLM served via vLLM directly from Google Vertex AI Model Garden read-only public weights. How can I assist you today?</div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="Ask the Model anything..." onkeydown="if(event.key==='Enter') sendQuery()" />
+                <button class="btn-send" onclick="sendQuery()" id="btn-send-query">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Script -->
+    <script src="/static/features/gpu-inference.js"></script>
+</body>
+</html>
