@@ -8,16 +8,18 @@ from showcase_admin.app import config
 Base = declarative_base()
 
 # SQLite database URL determination
-# In GKE Mode, mounts persistent disk at /data.
-# In local Mock Mode, writes to local folder ./data.
-if config.MODE == "MOCK":
+# Detect if running inside GKE / Docker Container
+is_container = os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount") or "KUBERNETES_SERVICE_HOST" in os.environ
+
+if is_container:
+    # GKE PVC Mount path (always writable inside GKE pod container)
+    os.makedirs("/data", exist_ok=True)
+    DATABASE_URL = "sqlite:////data/showcase.db"
+else:
+    # Local development (macOS / Linux)
     db_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data'))
     os.makedirs(db_dir, exist_ok=True)
     DATABASE_URL = f"sqlite:///{os.path.join(db_dir, 'showcase.db')}"
-else:
-    # GKE PVC Mount path
-    os.makedirs("/data", exist_ok=True)
-    DATABASE_URL = "sqlite:////data/showcase.db"
 
 # Setup SQLAlchemy engine and session
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
