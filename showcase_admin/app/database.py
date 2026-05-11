@@ -37,10 +37,12 @@ class ShowcaseModel(Base):
     last_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 def init_db():
-    # Create tables if they don't exist
-    Base.metadata.create_base_all = Base.metadata.create_all(engine)
+    # Create tables if they don't exist in the target engine
+    Base.metadata.create_all(engine)
 
 def get_db():
+    # Ensure tables are initialized and exist on every session request
+    init_db()
     db = SessionLocal()
     try:
         yield db
