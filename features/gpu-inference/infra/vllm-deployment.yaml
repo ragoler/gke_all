@@ -12,9 +12,6 @@ spec:
     metadata:
       labels:
         app: gpu-inference
-      annotations:
-        # Enable GCS FUSE CSI driver automatic injection
-        gke-gcsfuse/volumes: "true"
     spec:
       nodeSelector:
         cloud.google.com/gke-spot: "true"
@@ -31,12 +28,15 @@ spec:
       containers:
       # Container 1: vLLM Model Server
       - name: vllm-server
-        image: vllm/vllm-openai:latest
+        image: us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma
+        env:
+        - name: MODEL_ID
+          value: "google/gemma-2b-it"
         args:
         - "--model"
-        - "/data/model/codegemma/codegemma-7b-it"
+        - "$(MODEL_ID)"
         - "--served-model-name"
-        - "codegemma-7b-it"
+        - "$(MODEL_ID)"
         - "--max-model-len"
         - "2048"
         - "--enforce-eager"
@@ -54,9 +54,8 @@ spec:
             memory: "16Gi"
             nvidia.com/gpu: "1"
         volumeMounts:
-        - name: model-weights
-          mountPath: /data/model
-          readOnly: true
+        - name: dshm
+          mountPath: /dev/shm
       # Container 2: Playground Chat Client
       - name: playroom-app
         image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/gpu-inference-playroom:latest
@@ -64,7 +63,7 @@ spec:
         - name: VLLM_API_URL
           value: "http://localhost:8000/v1"
         - name: MODEL_NAME
-          value: "codegemma-7b-it"
+          value: "google/gemma-2b-it"
         ports:
         - containerPort: 8080
         resources:
@@ -75,10 +74,7 @@ spec:
             cpu: "500m"
             memory: "256Mi"
       volumes:
-      # Cloud Storage FUSE GCS bucket volume mount mapping
-      - name: model-weights
-        csi:
-          driver: gcsfuse.csi.storage.gke.io
-          volumeAttributes:
-            bucketName: ${GCS_MODEL_BUCKET}
-            mountOptions: "implicit-dirs"
+      # IPC Shared Memory Volume
+      - name: dshm
+        emptyDir:
+          medium: Memory
