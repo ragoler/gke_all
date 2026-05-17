@@ -29,7 +29,7 @@ graph TD
         subgraph AdminNamespace [Namespace: gke-showcase-admin]
             AdminGateway[Admin Gateway IP_A]
             DashboardApp[Showcase Admin FastAPI Backend]
-            LocalDB[(SQLite on PVC /data/showcase.db)]
+            LocalDB[("SQLite on PVC /data/showcase.db")]
             
             AdminGateway -->|Route: /| DashboardApp
             DashboardApp -->|Reads/Writes| LocalDB
@@ -48,7 +48,7 @@ graph TD
         subgraph InferenceShowcase [Namespace: gke-showcase-inference]
             InferenceGateway[Inference Gateway IP_C]
             vLLM[Official vLLM Model Server Pod]
-            SharedMem[/dev/shm Memory Volume]
+            SharedMem["/dev/shm Memory Volume"]
             
             InferenceGateway -->|Route: /| vLLM
             vLLM -->|Mount IPC Memory| SharedMem
