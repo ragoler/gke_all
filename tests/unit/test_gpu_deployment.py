@@ -24,19 +24,19 @@ def test_vllm_deployment_architecture():
     
     # Verify container image
     expected_image = "us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma"
-    assert vllm_server["image"] == expected_image, f"Expected image {expected_image}, got {vllm_server[image]}"
+    assert vllm_server["image"] == expected_image, f"Expected image {expected_image}, got {vllm_server['image']}"
     
     # Verify MODEL_ID environment variable
     env = vllm_server.get("env", [])
     model_id_var = next((e for e in env if e["name"] == "MODEL_ID"), None)
     assert model_id_var is not None, "MODEL_ID environment variable not found"
-    assert model_id_var["value"] == "google/gemma-2b-it", f"Expected MODEL_ID value google/gemma-2b-it, got {model_id_var[value]}"
+    assert model_id_var["value"] == "google/gemma-2b-it", f"Expected MODEL_ID value google/gemma-2b-it, got {model_id_var['value']}"
     
     # Verify volume mounts
     volume_mounts = vllm_server.get("volumeMounts", [])
     shm_mount = next((vm for vm in volume_mounts if vm["mountPath"] == "/dev/shm"), None)
     assert shm_mount is not None, "/dev/shm volume mount not found"
-    assert shm_mount["name"] == "dshm", f"Expected volume name dshm for /dev/shm, got {shm_mount[name]}"
+    assert shm_mount["name"] == "dshm", f"Expected volume name dshm for /dev/shm, got {shm_mount['name']}"
     
     # Verify pod volumes
     volumes = spec.get("volumes", [])
