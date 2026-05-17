@@ -362,6 +362,7 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     
     headers = {
         "X-Sandbox-Id": claim_id,
+        "X-Sandbox-Namespace": namespace,
         "Content-Type": "application/json"
     }
     
@@ -392,6 +393,7 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     
     headers = {
         "X-Sandbox-Id": claim_id,
+        "X-Sandbox-Namespace": namespace,
         "Content-Type": "application/json"
     }
     
