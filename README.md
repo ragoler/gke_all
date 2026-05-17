@@ -1,8 +1,12 @@
 # GKE Feature Showcase Hub
 
-The **GKE Feature Showcase Hub** is a modular, production-grade demonstration platform and administrative hub running on Google Kubernetes Engine (GKE). It serves as an interactive, single-user playground designed to dynamically deploy, experience, and tear down advanced GKE capabilities (e.g., isolated runtime sandboxes, Spot L4 GPU clusters, GCSFuse storage drivers, and Gateway routing policies).
+The **GKE Feature Showcase Hub** is a modular, production-grade demonstration platform and administrative hub running on Google Kubernetes Engine (GKE). It serves as an interactive, single-user playground designed to dynamically deploy, experience, and tear down advanced GKE capabilities (e.g., isolated gVisor runtime sandboxes, Spot L4 GPU clusters, GCSFuse storage drivers, and Gateway routing policies).
 
-The platform segregates showcases by dynamically provisioning each target feature into its own **dedicated Kubernetes Namespace** with custom namespace inputs, cascading teardown controls, exposed reach-out URLs, and real-time logs/playroom interaction consoles.
+### Key Architectural Principles
+*   **Decentralized Gateways**: Every deployed showcase stands completely by itself. The Showcase Admin Hub has its own Gateway and external IP, and every deployed showcase provisions its own dedicated Kubernetes `Gateway` and external IP. If one feature crashes or is deleted, it has zero impact on other features or the Admin Hub.
+*   **Embedded JWT Authentication**: The dashboard features a premium embedded HTML login screen secured by signed OAuth2 / Bearer JWT tokens, completely eliminating native browser popup credential prompts.
+*   **Modular Approach B Structure**: Each showcase feature (`/features/<name>/`) is 100% self-contained, co-locating both its backend Kubernetes manifests (`/infra`) and standalone frontend UI assets (`/frontend`).
+*   **Cluster Telemetry**: Includes an advanced cluster statistics collector querying the Kubernetes API directly to report live compute nodes, namespaces, workload statuses, and hardware accelerator counts.
 
 To support rapid, zero-cost developer loops, the Showcase Hub includes a comprehensive, offline **Mock Mode** driven by dynamic simulated state engines and an extensive pytest validation suite.
 
@@ -13,20 +17,21 @@ To support rapid, zero-cost developer loops, the Showcase Hub includes a compreh
 The project is structured to be completely modular and plug-and-play:
 
 ```
-├── README.md                       # Project documentation
+├── README.md                       # Project documentation & setup instructions
 ├── design.md                       # High-fidelity architectural specifications
-├── plan.md                         # Granular milestones and checklists
+├── plan.md                         # Granular milestones and task checklists
+├── agent.md                        # Mandatory AI agent operational & quality rules
 ├── build_infra.sh                  # Master GKE cluster bootstrapper script
 ├── scripts/
 │   └── build_and_push.sh           # Centralized multi-container build and push engine
 ├── infra/
-│   ├── gateway.yaml                # Shared external GKE HTTP Gateway manifest
+│   ├── gateway.yaml                # Admin Hub external GKE HTTP Gateway manifest
 │   └── main-app.yaml               # Showcase Admin PVC, Service, RBAC, and Deployment
 ├── showcase_admin/
-│   ├── Dockerfile                  # Multi-stage container file for Admin Hub
+│   ├── Dockerfile                  # Multi-stage container compiling Admin Hub & UI assets
 │   ├── requirements-dev.txt        # Shared python packages requirements
 │   ├── app/
-│   │   ├── auth.py                 # HTTP Basic Auth security middleware
+│   │   ├── auth.py                 # Embedded JWT authentication & security controllers
 │   │   ├── config.py               # Precedence environment loaders
 │   │   ├── database.py             # Relational SQLite PV storage connector
 │   │   ├── k8s_client.py           # Async GKE namespace orchestrator (Mock/Real)
@@ -34,18 +39,20 @@ The project is structured to be completely modular and plug-and-play:
 │   └── frontend/
 │       ├── index.html              # Beautiful geometric SPA dashboard
 │       ├── style.css               # Modern glassmorphic dark styling sheet
-│       └── app.js                  # Client polling and logs console coordinator
+│       └── app.js                  # Client polling, auth token management, and telemetry
 ├── features/
 │   ├── agent-sandbox/              # FEATURE 1: Dynamic gVisor sandbox workload
 │   │   ├── demo-app/               # Isolated workload FastAPI container code
-│   │   └── infra/                  # SandboxTemplates, WarmPool, Router, and HTTPRoutes
+│   │   ├── frontend/               # Standalone Sandbox UI playroom (HTML/CSS/JS)
+│   │   └── infra/                  # Standalone Gateway, Route, Template manifests
 │   └── gpu-inference/              # FEATURE 2: Spot NVIDIA L4 GPU + GCSFuse vLLM model
 │       ├── app/                    # Chat playground client container code
-│       └── infra/                  # vLLM server deployments, GCSFuse, and Route manifests
+│       ├── frontend/               # Standalone Chat UI playroom (HTML/CSS/JS)
+│       └── infra/                  # Standalone Gateway, vLLM Deployment, GCSFuse manifests
 └── tests/                          # Automated Testing Suite
     ├── conftest.py                 # Global mock environment parameters
-    ├── unit/                       # Unit tests for Config, Auth, and database SQLite CRUD
-    └── integration/                # Integration tests for REST APIs and GKE controllers
+    ├── unit/                       # Unit tests for Config, JWT Auth, and SQLite CRUD
+    └── integration/                # Integration tests for REST APIs, Gateways, and Telemetry
 ```
 
 ---
@@ -84,7 +91,7 @@ cp .env.example .env
 ```
 Configure the variables:
 *   `MODE=MOCK` (enables local offline simulated state loops)
-*   `ADMIN_AUTHENTICATION_ENABLED=TRUE` (secures the app behind basic auth)
+*   `ADMIN_AUTHENTICATION_ENABLED=TRUE` (secures the app behind embedded JWT auth)
 *   `ADMIN_USERNAME=admin`
 *   `ADMIN_PASSWORD=your-mock-pass`
 
@@ -95,18 +102,18 @@ uvicorn showcase_admin.app.main:app --reload
 ```
 
 ### 4. Experience and Test!
-*   **Dashboard UI**: Open **`http://127.0.0.1:8000/`** in your browser, log in using your credentials, and interact with the showcases! You can input custom namespaces, trigger deployments, view animated state indicators, stream diagnostic logs, and tear features down cleanly.
+*   **Dashboard UI**: Open **`http://127.0.0.1:8000/`** in your browser. You will be greeted by a centered glassmorphic login card. Log in with your configured credentials to access the main dashboard, view live cluster statistics in the telemetry tab, and deploy showcases!
 *   **REST APIs**: Open **`http://127.0.0.1:8000/docs`** to view and execute endpoints dynamically in the interactive Swagger UI.
 
 ---
 
 ## 🧪 Automated Testing Suite
 
-The Showcase Hub includes a robust pytest suite covering environment loaders, SQLite transactions, auth middlewares, manifest expansion interpolators, and GKE client controllers under mocked states.
+The Showcase Hub includes a robust pytest suite covering environment loaders, SQLite transactions, JWT issuance, manifest expansion interpolators, Gateway routing, and telemetry aggregation under mocked states.
 
 To run the entire automated suite inside the virtual environment:
 ```bash
-pytest tests/
+.venv/bin/python3 -m pytest tests/
 ```
 
 ---
@@ -120,35 +127,23 @@ Configure `.env` with `MODE=REAL` and your target Artifact Registry configuratio
 ```bash
 ./scripts/build_and_push.sh
 ```
-*   **What this does**: Automatically creates your Artifact Registry repository if missing, authenticates Docker to GCP, clones the upstream `google-agent-sandbox` repository, compiles all container targets (Showcase Hub Admin, Sandbox Demo workload, Sandbox Router, and GPU Inference Chat Client), and uploads them to GCP.
-*   *Optimization*: You can build a specific image using the `--feature` flag (e.g., `./scripts/build_and_push.sh --feature agent-sandbox-demo`).
+*   **What this does**: Automatically creates your Artifact Registry repository if missing, authenticates Docker to GCP, compiles all container targets (Showcase Hub Admin, Sandbox Demo workload, Sandbox Router, and GPU Inference Chat Client), copies all feature UI assets into the Admin container, and uploads them to GCP.
+*   *Optimization*: You can build a specific image using the `--feature` flag (e.g., `./scripts/build_and_push.sh --feature admin`).
 
 ### Step 2: Bootstrap GKE Cluster & Base Configurations
 Run the bootstrapping automation script:
 ```bash
 ./build_infra.sh
 ```
-*   **What this does**: 
-    1. Provisions a **GKE base Cluster** (with standard node pool for the Admin Hub pod) and Workload Identity enabled.
-    2. Enables Gateway API standard controllers and GKE Agent Sandbox add-ons.
-    3. Configures Workload Identity IAM bindings linking showcase ServiceAccounts to Vertex AI roles.
-    4. Creates a **Persistent Volume Claim (PVC)** backed by standard Persistent Disks.
-    5. Deploys the shared **GKE HTTP Gateway** and the **Showcase Admin Dashboard** mapped to PVC storage.
-    *   *Note*: Specialized node pools (gVisor and Spot NVIDIA L4 GPU pools) are **not** created here; they are provisioned dynamically when the features are deployed.
+*   **What this does**: Provisions a 2-node base GKE cluster for the Admin Hub pod with Workload Identity enabled, deploys the Admin Gateway, and mounts SQLite storage to a PersistentDisk PVC. 
+*   *Note*: Specialized node pools (gVisor and Spot L4 GPU pools) are **not** created here; they are provisioned dynamically when individual features are deployed.
 
 ### Step 3: Access and Dynamic Showcase Installation
-1. Find the external IP address of the shared GKE HTTP Gateway:
+1. Find the external IP address of the Admin Gateway:
    ```bash
    kubectl get gateway external-http-gateway -n gke-showcase-admin
    ```
-2. Open the external IP address in your browser and input your configured administrative credentials.
-3. **Deploy the GKE Agent Sandbox Showcase**:
-   * Input a custom namespace (e.g., `agent-sandbox-playground`) and click **"Deploy"**.
-   * The GKE controller will create the namespace, apply SandboxTemplate resources, configure warmpools, mount routers, and route routes.
-   * Open the monospaced logs overlay to see standard output logs stream in real-time!
-   * Open the playroom console to spawn gVisor-isolated pods under 1 second and toggle calling Gemini cloud APIs or local self-hosted vLLM model endpoints!
-4. **Deploy the GPU Model Inference Showcase**:
-   * Input a custom namespace (e.g., `vllm-inference-playground`) and click **"Deploy"**.
-   * GKE will schedule Spot L4 GPU instances, mount model weight buckets dynamically using GCSFuse, and deploy the completions server.
-   * Chat with your model in real-time inside the custom chat playground client playroom!
-5. **Tear Down**: Click **"Tear Down Showcase"** to perform a cascading deletion of the namespace and completely free up all cluster compute resources!
+2. Open the external IP address in your browser and log in using your credentials.
+3. **Deploy Showcases**: Input a custom namespace and click **"Deploy"**. GKE will dynamically provision a dedicated external Gateway IP for the feature.
+4. **Interact Directly**: Click "Open Showcase" to launch the feature's standalone UI. Browser requests communicate directly with the feature's external Gateway IP.
+5. **Tear Down**: Click **"Tear Down Showcase"** to perform a clean, cascading deletion of the feature's namespace and external Gateway, freeing up all compute resources instantly.
