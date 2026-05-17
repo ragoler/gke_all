@@ -61,7 +61,7 @@ spec:
         - name: MODEL_NAME
           value: "gemma-2b-it"
         ports:
-        - containerPort: 8000
+        - containerPort: 8080
         resources:
           requests:
             cpu: "100m"

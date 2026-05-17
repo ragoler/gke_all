@@ -111,7 +111,7 @@ gcloud container node-pools create showcase-gpu-pool \
     --cluster="$CLUSTER_NAME" --region="$REGION" \
     --machine-type="g2-standard-8" \
     --accelerator="type=nvidia-l4,count=1" \
-    --cloud-provider-gke-spot=true \
+    --spot \
     --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
     --quiet || echo "Spot GPU node pool already exists or skipped."
 

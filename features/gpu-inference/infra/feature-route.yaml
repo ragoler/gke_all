@@ -5,8 +5,7 @@ metadata:
   namespace: ${NAMESPACE}
 spec:
   parentRefs:
-  - name: external-http-gateway
-    namespace: gke-showcase-admin
+  - name: gpu-inference-gateway
   rules:
   - matches:
     - path:
