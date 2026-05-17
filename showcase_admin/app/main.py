@@ -163,13 +163,12 @@ async def teardown_feature(
         
     showcase = db.query(database.ShowcaseModel).filter_by(name=name).first()
     if not showcase or showcase.status == "DORMANT":
-        return {"name": name, "status": "DORMANT", "message": "Showcase already dormant."}
+        return {"name": name, "status": "DORMANT", "message": "Showcase already dormant or terminating."}
         
-    # Immediately commit DORMANT status
+    # Immediately commit TERMINATING status
     target_ns = showcase.namespace
-    showcase.status = "DORMANT"
+    showcase.status = "TERMINATING"
     showcase.reach_out_url = None
-    showcase.namespace = None
     db.commit()
     
     # Dispatch GKE teardown in the background
@@ -182,7 +181,7 @@ async def teardown_feature(
     
     return {
         "name": name,
-        "status": "DORMANT",
+        "status": "TERMINATING",
         "message": "Showcase dynamic teardown initiated successfully."
     }
 

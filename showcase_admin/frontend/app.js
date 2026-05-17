@@ -100,10 +100,12 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${item.status === "ACTIVE" ? `
                                 <a href="${item.reach_out_url}" class="btn-secondary">Feature dashboard</a>
                             ` : `
-                                <button class="btn-secondary" disabled>Provisioning...</button>
+                                <button class="btn-secondary" disabled>${item.status === "TERMINATING" ? "Terminating..." : "Provisioning..."}</button>
                             `}
                         </div>
-                        <button class="btn-deploy btn-teardown" data-name="${item.name}">Tear Down Showcase</button>
+                        <button class="btn-deploy btn-teardown" data-name="${item.name}" ${item.status === "TERMINATING" ? "disabled style=\"opacity: 0.6; cursor: not-allowed;\"" : ""}>
+                            ${item.status === "TERMINATING" ? "<span class=\"spinner\"></span> Terminating..." : "Tear Down Showcase"}
+                        </button>
                     </div>
                 `;
             }
@@ -232,8 +234,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Auto refresh/polling loop to sync DEPLOYING states
     setInterval(() => {
-        const hasDeployingItems = showcasesCache.some(item => item.status === "DEPLOYING");
-        if (hasDeployingItems) {
+        const needsSync = showcasesCache.some(item => item.status === "DEPLOYING" || item.status === "TERMINATING");
+        if (needsSync) {
             fetchShowcases();
         }
     }, 2000);

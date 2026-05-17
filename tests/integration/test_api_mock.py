@@ -13,9 +13,10 @@ from showcase_admin.app.database import Base, engine
 
 @pytest.fixture(autouse=True, name="mock_db")
 def fixture_mock_db():
-    # Recreate memory tables per integration test
+    engine.dispose()
     Base.metadata.create_all(bind=engine)
     yield
+    engine.dispose()
     Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(name="client")
@@ -71,7 +72,7 @@ def test_api_teardown_feature(client):
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "gpu-inference"
-        assert data["status"] == "DORMANT"
+        assert data["status"] == "TERMINATING"
     finally:
         # Clear overrides
         app.dependency_overrides.clear()

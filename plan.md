@@ -75,6 +75,15 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Author `/tests/unit/test_jwt_auth.py` to verify token generation, expiration, and rejection of unsigned tokens.
     - `[ ]` Execute automated test suite and verify 100% passing status before completion.
 
+### [x] Milestone 11: Robust Showcase Lifecycle State Synchronization
+*   **Objective**: Ensure instantaneous status synchronization during deployment and teardown transitions, adding active K8s readiness and deletion polling loops.
+*   **Tasks**:
+    - `[x]` Create symlink to master virtual environment.
+    - `[x]` Refactor `main.py` to instantly transition `status = "TERMINATING"`.
+    - `[x]` Refactor `k8s_client.py` to include active readiness polling in `deploy_showcase` and 404 polling in `teardown_showcase`.
+    - `[x]` Update `index.html`, `app.js`, and `style.css` to lock/disable Deploy/Teardown buttons and show a spinning indicator during termination.
+    - `[x]` Author automated unit test `/tests/unit/test_lifecycle_sync.py` verifying correct status transitions under mock mode.
+
 ### [x] Milestone 12: Repository Modularization (Approach B)
 *   **Objective**: Restructure feature folders to be 100% self-contained, housing both backend manifests and standalone frontend UI assets.
 *   **Tasks**:

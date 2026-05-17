@@ -33,15 +33,19 @@ def test_config_overrides():
         "ADMIN_PASSWORD": "super-password",
         "CLUSTER_NAME": "my-custom-cluster"
     }
-    # Mock env and prevent loading the filesystem .env file
-    with mock.patch.dict(os.environ, custom_env, clear=True), \
-         mock.patch("os.path.exists", side_effect=mock_exists_side_effect):
-        import importlib
-        import showcase_admin.app.config as config
-        importlib.reload(config)
-        
-        assert config.MODE == "REAL"
-        assert config.ADMIN_AUTHENTICATION_ENABLED is True
-        assert config.ADMIN_USERNAME == "super-admin"
-        assert config.ADMIN_PASSWORD == "super-password"
-        assert config.CLUSTER_NAME == "my-custom-cluster"
+    import importlib
+    import showcase_admin.app.config as config
+    try:
+        with mock.patch.dict(os.environ, custom_env, clear=True), \
+             mock.patch("os.path.exists", side_effect=mock_exists_side_effect):
+            importlib.reload(config)
+            
+            assert config.MODE == "REAL"
+            assert config.ADMIN_AUTHENTICATION_ENABLED is True
+            assert config.ADMIN_USERNAME == "super-admin"
+            assert config.ADMIN_PASSWORD == "super-password"
+            assert config.CLUSTER_NAME == "my-custom-cluster"
+    finally:
+        with mock.patch.dict(os.environ, {}, clear=True), \
+             mock.patch("os.path.exists", side_effect=mock_exists_side_effect):
+            importlib.reload(config)
