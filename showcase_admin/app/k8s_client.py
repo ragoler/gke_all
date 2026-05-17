@@ -380,7 +380,7 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/message"
     else:
         gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
-        url = f"http://{gateway_ip}/message" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/sandbox/message"
+        url = f"http://{gateway_ip}/message"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -411,7 +411,7 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/quote"
     else:
         gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
-        url = f"http://{gateway_ip}/quote" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/sandbox/quote"
+        url = f"http://{gateway_ip}/quote"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -437,7 +437,7 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/inference/chat"
     else:
         gateway_ip = await get_gateway_ip(namespace, "gpu-inference-gateway")
-        url = f"http://{gateway_ip}/chat" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/inference/chat"
+        url = f"http://{gateway_ip}/chat"
     
     async with httpx.AsyncClient() as client_http:
         try:
