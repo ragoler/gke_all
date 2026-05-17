@@ -111,3 +111,53 @@ To enforce clean modularity and maintainability across all full-stack web applic
 
 1. **Prohibition of Embedded Frontend Code**: Agents must **NEVER** embed raw HTML, CSS, or client-side JavaScript strings directly inside Python files or backend controllers.
 2. **Mandatory Static Asset Separation**: All user interfaces and web pages must be architected using dedicated static files (`index.html`, `style.css`, `app.js`) mounted and served via FastAPI `StaticFiles` or dedicated web server containers.
+
+---
+
+## Rule 15: Autonomous Multi-Agent Teamwork & Subagent GitOps (Owl Architecture)
+Development on the Showcase Hub is driven by an autonomous AI engineering team executing a continuous GitOps workflow modeled after Google's native subagent framework (`Owl` / `native_subagent_config_v3.py`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Human as Human Admin / Researcher
+    participant Orch as Orchestrator Agent
+    participant Coding as Coding Agent (Subagent)
+    participant Review as Code Review Agent (Subagent)
+    participant GitHub as GitHub Repository (GitOps)
+    participant Test as Testing Agent (GKE QA)
+    participant GKE as Live GKE Showcase Cluster
+
+    Human->>Orch: Approve plan.md / Assign Milestones
+    loop Continuous Task Delegation
+        Orch->>Orch: Execute Workflow Decision Step (Evaluate exactly which subagent is required)
+        Orch->>Coding: Invoke Subagent (Workspace="branch", Task="Milestone X", Tools="Scoped SkillToolset")
+        Coding->>Coding: Author Code & Run Unit Tests locally
+        Coding->>GitHub: Push branch `dev/milestone-X` & Open PR to `main`
+        
+        Orch->>Review: Detect Open PR -> Invoke Subagent (Task="Review PR #X", Tools="Code Review Skills")
+        Review->>Review: Inspect Code against agent.md & design.md
+        alt Discovers Violations
+            Review->>GitHub: Post Review Comments requesting fixes
+            GitHub-->>Coding: Trigger Coding Agent to push corrections
+        else Code is Pristine
+            Review->>GitHub: Approve PR & Auto-Merge to `main`
+        end
+
+        Orch->>Test: Detect Merge to `main` -> Invoke Subagent (Task="GKE QA", Tools="K8s Client Skills")
+        Test->>GKE: Execute build_and_push.sh & build_infra.sh (MODE=REAL)
+        Test->>Test: Run live end-to-end integration tests against GKE
+        alt Live Tests Fail
+            Test->>GitHub: Open Bug Issue (e.g., Issue #12: CORS Failure)
+            Orch->>Orch: Detect Open Issue -> Add high-priority fix to plan.md
+            Orch->>Coding: Assign Fix to Coding Agent
+        else Live Tests Pass
+            Test->>Orch: Report Successful Verification & Conclude Turn
+        end
+    end
+```
+
+### Architectural Alignment with Google3 `native_subagent_config_v3`
+1.  **Orchestrator & Workflow Decision Step**: In accordance with Google's modern subagent design (`native_subagent_config_v3.py`), the master Orchestrator Agent must execute an explicit decision step prior to launching subagents, ensuring tasks are delegated only when necessary to prevent context window saturation.
+2.  **Scoped Skillsets (`SkillToolset`)**: Rather than passing massive, unsegregated tool lists to every subagent, specialized subagents are equipped strictly with domain-specific skillsets (e.g., GKE QA subagent only receives Kubernetes interaction tools).
+3.  **Isolated Git Workspaces (`branch`)**: All subagents modifying code must operate in isolated branched workspaces (`Workspace="branch"`) to prevent merge conflicts and preserve the master working tree.
