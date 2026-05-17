@@ -19,7 +19,7 @@ spec:
       nodeSelector:
         cloud.google.com/gke-spot: "true"
         cloud.google.com/gke-gpu-driver-version: default
-        accelerator: nvidia-l4 # Target Nvidia L4 GPUs
+        cloud.google.com/gke-accelerator: nvidia-l4
       tolerations:
       - key: "nvidia.com/gpu"
         operator: "Exists"
