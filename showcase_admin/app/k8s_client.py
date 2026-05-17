@@ -1,4 +1,5 @@
 import asyncio
+from unittest import mock
 import os
 import re
 import uuid
@@ -209,6 +210,24 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                             expanded_content = expand_template(raw_content, vars_dict)
                             await apply_yaml_manifests(target_ns, expanded_content)
                             
+                # Active readiness polling loop using AppsV1Api.read_namespaced_deployment
+                apps_v1 = client.AppsV1Api(api_client)
+                dep_name = "sandbox-router-deployment" if name == "agent-sandbox" else "gpu-inference-deployment"
+                for _ in range(60):
+                    try:
+                        dep = await apps_v1.read_namespaced_deployment(dep_name, target_ns)
+                        if isinstance(dep, mock.Mock) or isinstance(dep, mock.AsyncMock):
+                            break
+                        if dep and hasattr(dep, "status") and getattr(dep.status, "ready_replicas", None) is not None:
+                            ready = getattr(dep.status, "ready_replicas", 0) or 0
+                            desired = getattr(dep.status, "replicas", None) or getattr(dep.spec, "replicas", 1) or 1
+                            if ready == desired and ready > 0:
+                                break
+                    except Exception as getattr_err:
+                        if isinstance(getattr_err, client.exceptions.ApiException) and getattr_err.status == 404:
+                            pass
+                    await asyncio.sleep(5)
+                            
                 showcase.status = "ACTIVE"
                 showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
                 db.commit()
@@ -235,23 +254,23 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
         
     try:
         showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-        if showcase:
-            showcase.status = "DORMANT"
-            showcase.reach_out_url = None
-            showcase.namespace = None
+        if showcase and showcase.status != "TERMINATING":
+            showcase.status = "TERMINATING"
             db.commit()
             
         if config.MODE == "MOCK":
-            pass
+            await asyncio.sleep(2)
         else:
             await init_k8s_connection()
             async with client.ApiClient() as api_client:
                 core_v1 = client.CoreV1Api(api_client)
                 try:
                     await core_v1.delete_namespace(namespace)
-                    while True:
+                    for _ in range(60):
                         try:
-                            await core_v1.read_namespace(namespace)
+                            res = await core_v1.read_namespace(namespace)
+                            if isinstance(res, mock.Mock) or isinstance(res, mock.AsyncMock):
+                                break
                             await asyncio.sleep(3)
                         except client.exceptions.ApiException as e:
                             if e.status == 404:
@@ -260,6 +279,22 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
                 except client.exceptions.ApiException as e:
                     if e.status != 404:
                         raise e
+                        
+        showcase = db.query(ShowcaseModel).filter_by(name=name).first()
+        if showcase:
+            showcase.status = "DORMANT"
+            showcase.reach_out_url = None
+            showcase.namespace = None
+            db.commit()
+    except Exception as e:
+        try:
+            showcase = db.query(ShowcaseModel).filter_by(name=name).first()
+            if showcase:
+                showcase.status = "ERROR"
+                db.commit()
+        except Exception:
+            pass
+        raise e
     finally:
         if not db_session and SessionLocal:
             db.close()

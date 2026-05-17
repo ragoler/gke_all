@@ -35,7 +35,7 @@ class ShowcaseModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False) # e.g., "agent-sandbox", "gpu-inference"
     namespace = Column(String, unique=True, nullable=True)        # custom or default deployed namespace
-    status = Column(String, default="DORMANT", nullable=False)     # DORMANT, DEPLOYING, ACTIVE, ERROR
+    status = Column(String, default="DORMANT", nullable=False)     # DORMANT, DEPLOYING, ACTIVE, TERMINATING, ERROR
     reach_out_url = Column(String, nullable=True)                 # reach out routing gateway URL
     installed_at = Column(DateTime, nullable=True)
     last_updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)

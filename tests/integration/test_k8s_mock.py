@@ -11,8 +11,10 @@ from showcase_admin.app.database import Base, engine, SessionLocal, ShowcaseMode
 
 @pytest.fixture(autouse=True, name="init_memory_db")
 def fixture_init_memory_db():
+    engine.dispose()
     Base.metadata.create_all(bind=engine)
     yield
+    engine.dispose()
     Base.metadata.drop_all(bind=engine)
 
 def test_expand_template():
