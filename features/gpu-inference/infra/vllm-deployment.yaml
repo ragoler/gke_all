@@ -34,7 +34,9 @@ spec:
         image: vllm/vllm-openai:latest
         args:
         - "--model"
-        - "/data/model/gemma/gemma-2b-it"
+        - "/data/model/codegemma/codegemma-2b"
+        - "--served-model-name"
+        - "codegemma-2b"
         - "--port"
         - "8000"
         ports:
@@ -59,7 +61,7 @@ spec:
         - name: VLLM_API_URL
           value: "http://localhost:8000/v1"
         - name: MODEL_NAME
-          value: "gemma-2b-it"
+          value: "codegemma-2b"
         ports:
         - containerPort: 8080
         resources:

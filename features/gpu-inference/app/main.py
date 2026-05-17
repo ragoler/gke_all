@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="vLLM GPU Inference Showcase")
 
 VLLM_API_URL = os.environ.get("VLLM_API_URL", "http://localhost:8000/v1").strip()
-MODEL_NAME = os.environ.get("MODEL_NAME", "gemma-2b-it").strip()
+MODEL_NAME = os.environ.get("MODEL_NAME", "codegemma-2b").strip()
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -119,7 +119,7 @@ async def index():
     </head>
     <body>
         <div class="chat-container">
-            <div class="header">vLLM GPU Playground - Model: Gemma 2B</div>
+            <div class="header">vLLM GPU Playground - Model: CodeGemma 2B</div>
             <div class="chat-messages" id="chat-box">
                 <div class="message ai">Hello! I am a self-hosted open-source LLM running on GKE Spot GPU nodes. How can I help you today?</div>
             </div>
