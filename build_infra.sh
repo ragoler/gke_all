@@ -81,6 +81,8 @@ if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/n
   gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --gateway-api=standard --quiet || echo "Gateway API already enabled or update in progress."
   echo "Verifying and enabling Agent Sandbox on existing cluster..."
   gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --enable-agent-sandbox --quiet || echo "Agent Sandbox already enabled or update in progress."
+  echo "Verifying and enabling GCSFuse CSI driver on existing cluster..."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --update-addons=GcsFuseCsiDriver=ENABLED --quiet || echo "GCSFuse CSI driver already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   gcloud beta container clusters create "$CLUSTER_NAME" \
