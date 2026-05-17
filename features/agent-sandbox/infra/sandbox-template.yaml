@@ -38,7 +38,7 @@ spec:
           value: "${GOOGLE_GENAI_USE_VERTEXAI}"
         # Optional variables for inter-showcase local vLLM routing
         - name: OPENAI_API_BASE
-          value: "http://vllm-service.gke-showcase-inference.svc.cluster.local:8000/v1"
+          value: "${OPENAI_API_BASE}"
         - name: MODEL_NAME
           value: "gemma-2b-it"
         # API Key Fallback secret - configured as optional

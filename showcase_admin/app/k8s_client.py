@@ -184,7 +184,8 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                         "REGION": config.REGION,
                         "NAMESPACE": target_ns,
                         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE" if config.GOOGLE_GENAI_USE_VERTEXAI else "FALSE",
-                        "GCS_MODEL_BUCKET": config.GCS_MODEL_BUCKET
+                        "GCS_MODEL_BUCKET": config.GCS_MODEL_BUCKET,
+                        "OPENAI_API_BASE": ""
                     }
                     
                     for filename in sorted(os.listdir(feature_infra_dir)):
