@@ -37,6 +37,9 @@ spec:
         - "/data/model/codegemma/codegemma-7b-it"
         - "--served-model-name"
         - "codegemma-7b-it"
+        - "--max-model-len"
+        - "2048"
+        - "--enforce-eager"
         - "--port"
         - "8000"
         ports:
