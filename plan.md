@@ -66,24 +66,24 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Author `/tests/unit/test_jwt_auth.py` to verify token generation, expiration, and rejection of unsigned tokens.
     - `[ ]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 10: Repository Modularization (Approach B)
+### [x] Milestone 10: Repository Modularization (Approach B)
 *   **Objective**: Restructure feature folders to be 100% self-contained, housing both backend manifests and standalone frontend UI assets.
 *   **Tasks**:
-    - `[ ]` Create `features/agent-sandbox/frontend/` and move `showcase_admin/frontend/features/agent-sandbox/*` into it.
-    - `[ ]` Create `features/gpu-inference/frontend/` and move `showcase_admin/frontend/features/gpu-inference/*` into it.
-    - `[ ]` Update `showcase_admin/Dockerfile` and `scripts/build_and_push.sh` to dynamically copy `features/*/frontend/` during container compilation.
-    - `[ ]` Author `/tests/unit/test_modular_build.py` to verify dynamic folder copying and static route mounting.
-    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+    - `[x]` Create `features/agent-sandbox/frontend/` and move `showcase_admin/frontend/features/agent-sandbox/*` into it.
+    - `[x]` Create `features/gpu-inference/frontend/` and move `showcase_admin/frontend/features/gpu-inference/*` into it.
+    - `[x]` Update `showcase_admin/Dockerfile` and `scripts/build_and_push.sh` to dynamically copy `features/*/frontend/` during container compilation.
+    - `[x]` Author `/tests/unit/test_modular_build.py` to verify dynamic folder copying and static route mounting.
+    - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 11: Decentralized Gateways & CORS
+### [x] Milestone 11: Decentralized Gateways & CORS
 *   **Objective**: Decouple feature networking by assigning dedicated external Gateway IPs to each deployed showcase and enabling CORS.
 *   **Tasks**:
-    - `[ ]` Add `gateway.yaml` and `http-route.yaml` to `features/agent-sandbox/infra/` and `features/gpu-inference/infra/`.
-    - `[ ]` Add FastAPI `CORSMiddleware` (`allow_origins=["*"]`) to Sandbox router and GPU inference workloads.
-    - `[ ]` Update `k8s_client.py` to discover and persist each feature's unique external Gateway IP upon deployment.
-    - `[ ]` Update `app.js` to route feature playroom interactions directly to the feature's standalone Gateway IP.
-    - `[ ]` Author `/tests/integration/test_gateway_routing.py` verifying Gateway IP extraction and CORS header presence under mock state.
-    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+    - `[x]` Add `gateway.yaml` and `http-route.yaml` to `features/agent-sandbox/infra/` and `features/gpu-inference/infra/`.
+    - `[x]` Add FastAPI `CORSMiddleware` (`allow_origins=["*"]`) to Sandbox router and GPU inference workloads.
+    - `[x]` Update `k8s_client.py` to discover and persist each feature's unique external Gateway IP upon deployment.
+    - `[x]` Update `app.js` to route feature playroom interactions directly to the feature's standalone Gateway IP.
+    - `[x]` Author `/tests/integration/test_gateway_routing.py` verifying Gateway IP extraction and CORS header presence under mock state.
+    - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
 ### [ ] Milestone 12: Global Cluster Telemetry & Statistics
 *   **Objective**: Build a real-time cluster statistics engine querying the Kubernetes API directly for compute, workload, and accelerator metrics.
@@ -119,3 +119,15 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Extract client-side JavaScript into `features/gpu-inference/frontend/app.js`.
     - `[ ]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
     - `[ ]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.
+
+### [ ] Milestone 16: Migrate GPU Inference Showcase to Official GKE Inference Gateway (`llm-d`)
+*   **Objective**: Upgrade the GPU inference showcase networking from a standard Kubernetes Service/Gateway to Google Cloud's advanced AI-aware GKE Inference Gateway (`llm-d`), explicitly following the architectural guide at https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deploy-gke-inference-gateway.
+*   **Tasks**:
+    - `[ ]` Replace standard `vllm-service.yaml` and `vllm-deployment.yaml` with standalone multi-port vLLM model server deployments compatible with NEG attachment.
+    - `[ ]` Author `InferencePool` manifest (`inference.networking.k8s.io/v1`) referencing the model server target ports and compute configuration.
+    - `[ ]` Author `InferenceObjective` manifest (`inference.networking.x-k8s.io/v1alpha2`) to configure request priority queueing and serving criticality.
+    - `[ ]` Refactor `feature-route.yaml` to route incoming traffic from `gpu-inference-gateway` to the backend `InferencePool` custom resource.
+    - `[ ]` Update `k8s_client.py` to support querying and resolving `InferencePool` status and external Gateway endpoints when `MODE=REAL`.
+    - `[ ]` Author `/tests/integration/test_inference_gateway_crds.py` verifying the generation and validation of `InferencePool` and `InferenceObjective` manifests under mock state.
+    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+
