@@ -27,5 +27,5 @@ SANDBOX_ROUTER_URL = os.getenv("SANDBOX_ROUTER_URL", "")
 GOOGLE_GENAI_USE_VERTEXAI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").upper() == "TRUE"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-MODEL_NAME = os.getenv("MODEL_NAME", "codegemma-2b")
+MODEL_NAME = os.getenv("MODEL_NAME", "codegemma-7b-it")
 GCS_MODEL_BUCKET = os.getenv("GCS_MODEL_BUCKET", "vertex-model-garden-public-us")

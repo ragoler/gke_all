@@ -40,7 +40,7 @@ spec:
         - name: OPENAI_API_BASE
           value: "${OPENAI_API_BASE}"
         - name: MODEL_NAME
-          value: "codegemma-2b"
+          value: "codegemma-7b-it"
         # API Key Fallback secret - configured as optional
         - name: GEMINI_API_KEY
           valueFrom:
