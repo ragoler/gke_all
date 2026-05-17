@@ -11,6 +11,7 @@ The platform is **single-user/administrator-driven**—it does not serve multipl
 3. **Embedded JWT Authentication**: The application features an embedded HTML login UI. Secure OAuth2 / Bearer JWT tokens manage session state with clean login/logout controls, replacing browser basic auth popups.
 4. **Soft Dependencies**: Showcases can dynamically reference one another (e.g., an Agent Sandbox calling a co-located GPU Inference endpoint) via runtime IP injection managed by the Admin Hub during deployment.
 5. **Cluster Telemetry**: A dedicated statistics engine queries the Kubernetes API directly to present real-time cluster health, node counts, workloads, and accelerator utilization in a dedicated telemetry tab.
+6. **Autonomous Multi-Agent GitOps**: Development is driven by an autonomous AI team comprising an Orchestrator, Coding Agents, Code Review Agents, and GKE Testing Agents executing continuous integration and deployment loops.
 
 ---
 
@@ -150,7 +151,58 @@ To provide comprehensive cluster visibility, the platform includes a dedicated *
 
 ---
 
-## 4. Execution Modes Comparison
+## 4. Autonomous Multi-Agent Teamwork Architecture
+
+Development on the Showcase Hub is managed by an autonomous AI engineering team executing a continuous GitOps workflow.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Human as Human Admin / Researcher
+    participant Orch as Orchestrator Agent
+    participant Coding as Coding Agent (Subagent)
+    participant Review as Code Review Agent (Subagent)
+    participant GitHub as GitHub Repository (GitOps)
+    participant Test as Testing Agent (GKE QA)
+    participant GKE as Live GKE Showcase Cluster
+
+    Human->>Orch: Approve plan.md / Assign Milestones
+    loop Continuous Task Delegation
+        Orch->>Coding: Invoke Subagent (Workspace="branch", Task="Milestone X")
+        Coding->>Coding: Author Code & Run Unit Tests locally
+        Coding->>GitHub: Push branch `dev/milestone-X` & Open PR to `main`
+        
+        Orch->>Review: Detect Open PR -> Invoke Subagent (Task="Review PR #X")
+        Review->>Review: Inspect Code against agent.md & design.md
+        alt Discovers Violations
+            Review->>GitHub: Post Review Comments requesting fixes
+            GitHub-->>Coding: Trigger Coding Agent to push corrections
+        else Code is Pristine
+            Review->>GitHub: Approve PR & Auto-Merge to `main`
+        end
+
+        Orch->>Test: Detect Merge to `main` -> Invoke Subagent (Task="GKE QA")
+        Test->>GKE: Execute build_and_push.sh & build_infra.sh (MODE=REAL)
+        Test->>Test: Run live end-to-end integration tests against GKE
+        alt Live Tests Fail
+            Test->>GitHub: Open Bug Issue (e.g., Issue #12: CORS Failure)
+            Orch->>Orch: Detect Open Issue -> Add high-priority fix to plan.md
+            Orch->>Coding: Assign Fix to Coding Agent
+        else Live Tests Pass
+            Test->>Orch: Report Successful Verification & Conclude Turn
+        end
+    end
+```
+
+### Agent Team Roles & Responsibilities
+1.  **Orchestrator Agent**: The master project manager. Operates in the root workspace monitoring `plan.md`, polling GitHub PRs and Issues, and spawning specialized subagents using `invoke_subagent`.
+2.  **Coding Agent**: Operates in an isolated, branched workspace (`Workspace="branch"`). Responsible for writing application code, manifest files, and unit tests. Pushes commits to feature branches (`dev/milestone-X`) and submits Pull Requests to `main`.
+3.  **Code Review Agent**: Invoked when a PR is opened. Reviews PR code against `agent.md` rules (type hints, structured logging, docstrings, CORS). Posts comments on PRs for required fixes, and auto-merges approved PRs to `main`.
+4.  **Testing Agent (End-to-End GKE QA)**: Invoked when code is merged to `main`. Deploys the updated `main` branch directly to our single active GKE cluster (`gke-showcase-cluster`) and runs comprehensive live integration testing. Opens GitHub Issues if live failures occur.
+
+---
+
+## 5. Execution Modes Comparison
 
 | Feature / Dimension | Local / Mock Mode (`MODE=MOCK`) | Real GKE Mode (`MODE=REAL`) |
 | :--- | :--- | :--- |

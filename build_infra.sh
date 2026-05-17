@@ -117,6 +117,7 @@ echo "Creating secure credentials secret..."
 kubectl create secret generic showcase-admin-creds \
     --from-literal=ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
     --from-literal=ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin-password}" \
+    --from-literal=JWT_SECRET_KEY="${JWT_SECRET_KEY:-mock-jwt-secure-signing-secret-key}" \
     -n gke-showcase-admin --dry-run=client -o yaml | kubectl apply -f -
 
 # Setup Showcase Admin DashboardPVC & Deployments
@@ -127,6 +128,7 @@ export ARTIFACT_REGISTRY_REPO
 export ADMIN_AUTHENTICATION_ENABLED="${ADMIN_AUTHENTICATION_ENABLED:-TRUE}"
 export ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin-password}"
+export JWT_SECRET_KEY="${JWT_SECRET_KEY:-mock-jwt-secure-signing-secret-key}"
 export GOOGLE_GENAI_USE_VERTEXAI="${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}"
 export GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 

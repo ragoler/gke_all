@@ -105,6 +105,11 @@ spec:
             secretKeyRef:
               name: showcase-admin-creds
               key: ADMIN_PASSWORD
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: showcase-admin-creds
+              key: JWT_SECRET_KEY
         - name: PROJECT_NAME
           value: "${PROJECT_NAME}"
         - name: REGION

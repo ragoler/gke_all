@@ -38,44 +38,52 @@ To guarantee that the application remains 100% reproducible across any GCP envir
 
 ---
 
-## Rule 4: Strict Code Formatting & Type Hinting
+## Rule 4: Interactive User Communication & Design Inquiry
+When interacting with human administrators or researchers during planning and design phases:
+
+1. **Active Design Inquiry**: Agents are strongly encouraged to ask clarifying design and architectural questions when requirements are ambiguous or underspecified.
+2. **Single Question Mandate**: Agents **MUST** always ask exactly **one question at a time**. Bundling multiple questions into a single prompt is strictly prohibited to ensure clean, focused decision-making.
+
+---
+
+## Rule 5: Strict Code Formatting & Type Hinting
 1. **Type Annotations**: All new Python functions, methods, and variables **MUST** include explicit type hints (e.g., `def get_feature_status(name: str) -> dict:`).
 2. **Pristine Formatting**: Agents must ensure all code adheres to PEP8 formatting guidelines (verifiable via `ruff` or `black`). Unused imports, unformatted lines, or dangling variables are strictly prohibited.
 
 ---
 
-## Rule 5: Robust Error Handling & Structured Logging
+## Rule 6: Robust Error Handling & Structured Logging
 1. **Prohibition of Silent Failures**: Bare `except:` blocks or silent `except Exception: pass` statements are strictly prohibited. 
 2. **Contextual Logging**: All exceptions must be captured and logged with rich context using `logger.error(..., exc_info=True)` or `logger.warning()`.
 3. **Structured HTTP Exceptions**: FastAPI REST controllers must return explicit, descriptive `HTTPException` models with appropriate HTTP status codes (400, 401, 403, 404, 500) rather than allowing internal exceptions to bubble up as generic 500 errors.
 
 ---
 
-## Rule 6: Strict Security & Plaintext Secret Prohibition
+## Rule 7: Strict Security & Plaintext Secret Prohibition
 1. **Zero Plaintext Credentials**: Agents must **NEVER** hardcode plaintext secrets, API keys, passwords, or secure connection tokens inside source code, test mock strings, or manifest files.
 2. **Environment Management**: All credentials and confidential variables must be strictly loaded from local `.env` configurations or environment variables (`os.getenv`).
 
 ---
 
-## Rule 7: Mandatory Docstrings & OpenAPI/Swagger Integrity
+## Rule 8: Mandatory Docstrings & OpenAPI/Swagger Integrity
 1. **Google-Style Docstrings**: Every new public function, class, and API controller must include a clear Google-style Python docstring documenting parameters, return types, and potential exceptions.
 2. **High-Fidelity Swagger UI**: FastAPI endpoint routers must include detailed `summary`, `description`, and `response_model` parameters to guarantee that the interactive API documentation at `/docs` remains completely accurate and professional.
 
 ---
 
-## Rule 8: Pinned Dependency Management
+## Rule 9: Pinned Dependency Management
 1. **No Wildcard Packages**: When introducing a new Python dependency (such as `pyjwt` or `pytest-cov`), agents are strictly prohibited from running unpinned installations.
 2. **Explicit Version Pinning**: All new packages must be explicitly pinned to their tested version inside `showcase_admin/requirements-dev.txt` or the showcase's local `requirements.txt` (e.g., `pyjwt>=2.8.0`).
 
 ---
 
-## Rule 9: Modular Isolation & Approach B Compliance
+## Rule 10: Modular Isolation & Approach B Compliance
 1. **Repository Modularity**: When adding new feature showcases, agents must adhere strictly to **Approach B**. All backend manifests (`/infra`) and standalone frontend UI assets (`/frontend`) must be co-located within `/features/<feature-name>/`.
 2. **Decentralized Gateways**: Every showcase feature must deploy with its own standalone Kubernetes `Gateway` and external IP.
 3. **CORS Enforcement**: All feature backend API servers must be equipped with standard CORS headers (`Access-Control-Allow-Origin: *`) to permit direct cross-origin REST API calls from client browsers.
 
 ---
 
-## Rule 10: Atomic Task Execution & Changelist Hygiene
+## Rule 11: Atomic Task Execution & Changelist Hygiene
 1. **Atomic Units of Work**: Agents must execute work in small, focused increments. An agent must never attempt to solve multiple unrelated milestones simultaneously.
 2. **Changelist Descriptions**: Every commit or changelist must include a clean, professional semantic commit message (e.g., `feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
