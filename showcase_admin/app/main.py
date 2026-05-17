@@ -162,7 +162,7 @@ async def teardown_feature(
         raise HTTPException(status_code=404, detail=f"Showcase '{name}' not supported.")
         
     showcase = db.query(database.ShowcaseModel).filter_by(name=name).first()
-    if not showcase or showcase.status == "DORMANT":
+    if not showcase or showcase.status in ["DORMANT", "TERMINATING"]:
         return {"name": name, "status": "DORMANT", "message": "Showcase already dormant or terminating."}
         
     # Immediately commit TERMINATING status
