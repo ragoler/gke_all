@@ -87,3 +87,11 @@ When interacting with human administrators or researchers during planning and de
 ## Rule 11: Atomic Task Execution & Changelist Hygiene
 1. **Atomic Units of Work**: Agents must execute work in small, focused increments. An agent must never attempt to solve multiple unrelated milestones simultaneously.
 2. **Changelist Descriptions**: Every commit or changelist must include a clean, professional semantic commit message (e.g., `feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
+
+---
+
+## Rule 12: Autonomous Execution Mandate
+To maximize engineering velocity and autonomous execution:
+
+1. **Proactive Verification & Testing**: Agents **MUST** proactively execute the automated testing suite (`.venv/bin/python3 -m pytest tests/`) whenever code changes occur. Human permission is strictly not required.
+2. **Proactive Infrastructure Updates**: Whenever container code or deployment scripts are modified, agents must proactively execute container compilation (`scripts/build_and_push.sh`) and pod restarts (`kubectl rollout restart`) to maintain continuous live synchronization on GKE.
