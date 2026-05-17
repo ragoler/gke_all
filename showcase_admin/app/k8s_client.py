@@ -62,7 +62,7 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
     if "sandbox" in namespace:
         return f"sandbox-router-svc.{namespace}.svc.cluster.local:8080"
     elif "inference" in namespace:
-        return f"vllm-service.{namespace}.svc.cluster.local:8000"
+        return f"inference-playroom-svc.{namespace}.svc.cluster.local:8080"
     return "127.0.0.1"
 
 async def apply_yaml_manifests(namespace: str, manifests_content: str):
