@@ -111,3 +111,11 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Extract client-side JavaScript into `features/gpu-inference/frontend/app.js`.
     - `[ ]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
     - `[ ]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.
+
+### [ ] Milestone 15: Live GKE Integration Testing Harness
+*   **Objective**: Establish a robust integration testing harness (`/tests/integration/test_live_gke.py`) that verifies real GKE cluster operations, gateway routing, and custom resource allocations when `MODE=REAL`.
+*   **Tasks**:
+    - `[ ]` Author `test_live_gke_connection.py` verifying real `kubernetes_asyncio` API authorization against the active GKE control plane.
+    - `[ ]` Author live showcase deployment tests verifying real namespace creation and Gateway external IP assignment on GKE.
+    - `[ ]` Author live teardown tests verifying complete namespace termination and Cluster Autoscaler node pool scale-down to 0.
+    - `[ ]` Configure pytest markers (`@pytest.mark.gke`) to cleanly distinguish between local offline mock tests and live cloud integration runs.

@@ -8,7 +8,7 @@ This document defines mandatory operational rules, security policies, and qualit
 Every development milestone or feature task **MUST** conclude with robust automated verification before being marked as complete.
 
 ### Operational Requirements
-1. **Test Authoring**: For every new feature, endpoint, or architectural change, the executing agent must author accompanying unit tests (`/tests/unit`) or integration tests (`/tests/integration`).
+1. **Comprehensive Test Mandate**: For every milestone or architectural feature, agents **MUST** author both isolated unit tests (`/tests/unit`) and live GKE integration tests (`/tests/integration`) designed to execute against active cloud infrastructure when `MODE=REAL`.
 2. **Coverage Requirement**: Tests must cover both positive success paths and negative error/rejection handling (e.g., basic auth failures, JWT expiration, k8s exceptions, invalid namespaces).
 3. **Execution Verification**: Before marking any task or milestone as `[x]` in `plan.md`, the agent **MUST** execute the entire pytest suite inside the virtual environment:
    ```bash
