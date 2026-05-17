@@ -147,19 +147,6 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
         else:
             await init_k8s_connection()
             
-            # A. Enable GKE Gateway API capability standard (shared across showcases)
-            check_gateway = await run_gcloud_cmd([
-                "container", "clusters", "describe", config.CLUSTER_NAME,
-                "--region", config.REGION,
-                "--format=value(addonsConfig.gatewayApiConfig.channel)"
-            ])
-            if "STANDARD" not in check_gateway.upper():
-                await run_gcloud_cmd([
-                    "container", "clusters", "update", config.CLUSTER_NAME,
-                    "--region", config.REGION,
-                    "--gateway-api=standard"
-                ])
-                
             # Apply Gateway
             gateway_infra_file = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -169,59 +156,7 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                 with open(gateway_infra_file, 'r') as f:
                     gateway_content = f.read()
                 await apply_yaml_manifests("gke-showcase-admin", gateway_content)
-            
-            # B. Enable GKE Agent Sandbox capability (Agent Sandbox showcase only)
-            if name == "agent-sandbox":
-                check_sandbox = await run_gcloud_cmd([
-                    "container", "clusters", "describe", config.CLUSTER_NAME,
-                    "--region", config.REGION,
-                    "--format=value(addonsConfig.agentSandboxConfig.enabled)"
-                ])
-                if "TRUE" not in check_sandbox.upper():
-                    await run_gcloud_cmd([
-                        "beta", "container", "clusters", "update", config.CLUSTER_NAME,
-                        "--region", config.REGION,
-                        "--enable-agent-sandbox"
-                    ])
-                    
-                # Spin up gVisor Node pool
-                pool_name = "showcase-gvisor-pool"
-                check_pool = await run_gcloud_cmd([
-                    "container", "node-pools", "list",
-                    "--cluster", config.CLUSTER_NAME,
-                    "--region", config.REGION,
-                    "--format=value(name)"
-                ])
-                if pool_name not in check_pool:
-                    await run_gcloud_cmd([
-                        "container", "node-pools", "create", pool_name,
-                        "--cluster", config.CLUSTER_NAME,
-                        "--region", config.REGION,
-                        "--machine-type", "e2-standard-2",
-                        "--image-type", "cos_containerd",
-                        "--sandbox", "type=gvisor"
-                    ])
-            
-            elif name == "gpu-inference":
-                # Spin up Spot GPU pool
-                pool_name = "showcase-gpu-pool"
-                check_pool = await run_gcloud_cmd([
-                    "container", "node-pools", "list",
-                    "--cluster", config.CLUSTER_NAME,
-                    "--region", config.REGION,
-                    "--format=value(name)"
-                ])
-                if pool_name not in check_pool:
-                    await run_gcloud_cmd([
-                        "container", "node-pools", "create", pool_name,
-                        "--cluster", config.CLUSTER_NAME,
-                        "--region", config.REGION,
-                        "--machine-type", "g2-standard-8",
-                        "--accelerator", "type=nvidia-l4,count=1",
-                        "--enable-image-streaming",
-                        "--cloud-provider-gke-spot=true"
-                    ])
-
+                
             # C. PROVISION RESOURCES
             async with client.ApiClient() as api_client:
                 core_v1 = client.CoreV1Api(api_client)
@@ -298,17 +233,6 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
                 except client.exceptions.ApiException as e:
                     if e.status != 404:
                         raise e
-                        
-            pool_name = "showcase-gvisor-pool" if name == "agent-sandbox" else "showcase-gpu-pool"
-            try:
-                await run_gcloud_cmd([
-                    "container", "node-pools", "delete", pool_name,
-                    "--cluster", config.CLUSTER_NAME,
-                    "--region", config.REGION,
-                    "--quiet"
-                ])
-            except Exception:
-                pass
     finally:
         if not db_session and SessionLocal:
             db.close()

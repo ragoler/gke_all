@@ -78,19 +78,38 @@ echo "======================================================================"
 if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
   echo "Cluster $CLUSTER_NAME already exists, skipping cluster creation."
 else
-  echo "Creating base GKE Cluster with Workload Identity..."
+  echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   gcloud beta container clusters create "$CLUSTER_NAME" \
       --region="$REGION" \
       --cluster-version="$CLUSTER_VERSION" \
       --machine-type="$MACHINE_TYPE" \
       --num-nodes=2 \
       --no-enable-master-authorized-networks \
-      --workload-pool="${PROJECT_ID}.svc.id.goog"
+      --workload-pool="${PROJECT_ID}.svc.id.goog" \
+      --gateway-api=standard \
+      --enable-agent-sandbox
 fi
 
 # Retrieve GKE cluster credentials
 echo "Importing GKE context credentials locally..."
 gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$REGION"
+
+# Provision zero-cost autoscaling specialized node pools
+echo "Provisioning zero-cost autoscaling specialized node pools..."
+gcloud container node-pools create showcase-gvisor-pool \
+    --cluster="$CLUSTER_NAME" --region="$REGION" \
+    --machine-type="e2-standard-2" \
+    --sandbox="type=gvisor" \
+    --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
+    --quiet || echo "gVisor node pool already exists or skipped."
+
+gcloud container node-pools create showcase-gpu-pool \
+    --cluster="$CLUSTER_NAME" --region="$REGION" \
+    --machine-type="g2-standard-8" \
+    --accelerator="type=nvidia-l4,count=1" \
+    --cloud-provider-gke-spot=true \
+    --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
+    --quiet || echo "Spot GPU node pool already exists or skipped."
 
 # Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
