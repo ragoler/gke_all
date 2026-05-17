@@ -198,5 +198,4 @@ async def chat_api(payload: ChatPayload):
             return {"reply": reply}
     except Exception as e:
         logger.error(f"Inference failed: {e}")
-        # Return static mock reply if real vLLM is currently offline (graceful fallback for hybrid validations)
-        return {"reply": f"[MOCK INFERENCE] This is a simulated response to your prompt: '{payload.prompt}'. In live production, this query is resolved on NVIDIA L4 GPUs running vLLM."}
+        return {"reply": "⏳ [STATUS: MODEL LOADING] The NVIDIA L4 GPU is currently downloading model weights or initializing CUDA tensors. Please try again in a few minutes."}
