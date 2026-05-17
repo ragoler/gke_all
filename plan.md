@@ -102,3 +102,12 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Expand GKE mock client tests (`/tests/integration/test_k8s_mock.py`) to simulate API timeouts and gateway resolution fallbacks.
     - `[ ]` Author longevity and resilience mock tests simulating repeated deploy/teardown cycles across multiple concurrent showcases.
     - `[ ]` Execute full coverage report (`pytest --cov=showcase_admin --cov=features tests/`) and verify >90% code coverage.
+
+### [ ] Milestone 14: Refactor GPU Inference Playroom (Separation of Concerns)
+*   **Objective**: Eliminate the embedded HTML/CSS/JS string in `features/gpu-inference/app/main.py` by refactoring the UI into standalone frontend assets (`index.html`, `style.css`, `app.js`).
+*   **Tasks**:
+    - `[ ]` Extract hardcoded HTML string from `main.py` and author `features/gpu-inference/frontend/index.html`.
+    - `[ ]` Extract CSS styles into `features/gpu-inference/frontend/style.css`.
+    - `[ ]` Extract client-side JavaScript into `features/gpu-inference/frontend/app.js`.
+    - `[ ]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
+    - `[ ]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.

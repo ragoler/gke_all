@@ -103,3 +103,11 @@ To guarantee long-term code longevity and pristine execution:
 
 1. **Zero Deprecated APIs**: Agents must never introduce deprecated Python libraries, functions (e.g., `datetime.utcnow`), or outdated Kubernetes apiVersions.
 2. **Zero Test Warnings**: The automated test verification suite must execute with exactly zero warnings. Any deprecation or runtime warning must be treated with the same severity as a test failure and resolved immediately.
+
+---
+
+## Rule 14: Separation of Concerns (Frontend / Backend)
+To enforce clean modularity and maintainability across all full-stack web applications:
+
+1. **Prohibition of Embedded Frontend Code**: Agents must **NEVER** embed raw HTML, CSS, or client-side JavaScript strings directly inside Python files or backend controllers.
+2. **Mandatory Static Asset Separation**: All user interfaces and web pages must be architected using dedicated static files (`index.html`, `style.css`, `app.js`) mounted and served via FastAPI `StaticFiles` or dedicated web server containers.
