@@ -41,7 +41,7 @@ async def run_gcloud_cmd(args: list) -> str:
         raise Exception(f"gcloud command failed: {stderr.decode()}")
     return stdout.decode()
 
-async def get_gateway_ip() -> str:
+async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
     await init_k8s_connection()
     async with client.ApiClient() as api_client:
         custom_api = client.CustomObjectsApi(api_client)
@@ -49,16 +49,21 @@ async def get_gateway_ip() -> str:
             gateway = await custom_api.get_namespaced_custom_object(
                 group="gateway.networking.k8s.io",
                 version="v1",
-                namespace="gke-showcase-admin",
+                namespace=namespace,
                 plural="gateways",
-                name="external-http-gateway"
+                name=gateway_name
             )
             addresses = gateway.get("status", {}).get("addresses", [])
             if addresses:
                 return addresses[0].get("value")
         except Exception:
             pass
-    return "8.229.28.149" # Fallback if not fully resolved
+    # If gateway IP is still reconciling, return cluster-internal service DNS as fallback
+    if "sandbox" in namespace:
+        return f"sandbox-router-svc.{namespace}.svc.cluster.local:8080"
+    elif "inference" in namespace:
+        return f"vllm-service.{namespace}.svc.cluster.local:8000"
+    return "127.0.0.1"
 
 async def apply_yaml_manifests(namespace: str, manifests_content: str):
     docs = yaml.safe_load_all(manifests_content)
@@ -352,8 +357,8 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     if config.SANDBOX_ROUTER_URL:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/message"
     else:
-        gateway_ip = await get_gateway_ip()
-        url = f"http://{gateway_ip}/sandbox/message"
+        gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
+        url = f"http://{gateway_ip}/message" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/sandbox/message"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -382,8 +387,8 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     if config.SANDBOX_ROUTER_URL:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/quote"
     else:
-        gateway_ip = await get_gateway_ip()
-        url = f"http://{gateway_ip}/sandbox/quote"
+        gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
+        url = f"http://{gateway_ip}/quote" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/sandbox/quote"
     
     headers = {
         "X-Sandbox-Id": claim_id,
@@ -407,8 +412,8 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
     if config.SANDBOX_ROUTER_URL:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/inference/chat"
     else:
-        gateway_ip = await get_gateway_ip()
-        url = f"http://{gateway_ip}/inference/chat"
+        gateway_ip = await get_gateway_ip(namespace, "gpu-inference-gateway")
+        url = f"http://{gateway_ip}/chat" if "svc.cluster" in gateway_ip else f"http://{gateway_ip}/inference/chat"
     
     async with httpx.AsyncClient() as client_http:
         try:

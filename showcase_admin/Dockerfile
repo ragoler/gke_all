@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir --index-url https://pypi.org/simple -r requiremen
 
 # Copy the showcase_admin directory structure to maintain module package paths
 COPY showcase_admin/ showcase_admin/
+COPY features/ features/
+COPY infra/ infra/
 
 # Volume mount point for persistent SQLite disk on GKE
 VOLUME /data
