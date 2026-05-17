@@ -77,12 +77,10 @@ echo "======================================================================"
 # Base cluster creation
 if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
   echo "Cluster $CLUSTER_NAME already exists."
-  echo "Verifying and enabling Gateway API and Agent Sandbox addons on existing cluster..."
-  gcloud beta container clusters update "$CLUSTER_NAME" \
-      --region="$REGION" \
-      --gateway-api=standard \
-      --enable-agent-sandbox \
-      --quiet || echo "Addons already enabled or update in progress."
+  echo "Verifying and enabling Gateway API on existing cluster..."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --gateway-api=standard --quiet || echo "Gateway API already enabled or update in progress."
+  echo "Verifying and enabling Agent Sandbox on existing cluster..."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --enable-agent-sandbox --quiet || echo "Agent Sandbox already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   gcloud beta container clusters create "$CLUSTER_NAME" \
