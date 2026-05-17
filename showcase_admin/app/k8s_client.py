@@ -166,6 +166,19 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
             async with client.ApiClient() as api_client:
                 core_v1 = client.CoreV1Api(api_client)
                 
+                # Actively wait for namespace deletion if it is currently terminating from a previous teardown
+                while True:
+                    try:
+                        ns_info = await core_v1.read_namespace(target_ns)
+                        if ns_info.status.phase == "Terminating":
+                            await asyncio.sleep(3)
+                        else:
+                            break
+                    except client.exceptions.ApiException as e:
+                        if e.status == 404:
+                            break
+                        raise e
+                
                 ns_body = client.V1Namespace(metadata=client.V1ObjectMeta(name=target_ns))
                 try:
                     await core_v1.create_namespace(ns_body)
@@ -236,6 +249,14 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
                 core_v1 = client.CoreV1Api(api_client)
                 try:
                     await core_v1.delete_namespace(namespace)
+                    while True:
+                        try:
+                            await core_v1.read_namespace(namespace)
+                            await asyncio.sleep(3)
+                        except client.exceptions.ApiException as e:
+                            if e.status == 404:
+                                break
+                            raise e
                 except client.exceptions.ApiException as e:
                     if e.status != 404:
                         raise e

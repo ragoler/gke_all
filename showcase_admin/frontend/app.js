@@ -165,7 +165,6 @@ document.addEventListener("DOMContentLoaded", () => {
         
         else if (target.classList.contains("btn-teardown")) {
             // Teardown sequence
-            if (!confirm("Are you sure you want to completely tear down this showcase and delete its GKE namespace?")) return;
 
             target.textContent = "Terminating...";
             target.disabled = true;

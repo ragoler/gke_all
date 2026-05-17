@@ -97,7 +97,6 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Delete/Release Sandbox Claim
     window.deleteClaim = async (id) => {
-        if (!confirm(`Are you sure you want to release and destroy sandbox claim '${id}'?`)) return;
         
         try {
             const response = await fetch(`/api/sandboxes/${id}`, {
