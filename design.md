@@ -151,7 +151,16 @@ To provide comprehensive cluster visibility, the platform includes a dedicated *
 
 ---
 
-### 3.7. Official GKE Gemma GPU Serving Architecture (vLLM Tutorial Alignment)
+## 4. Deployed Showcase Features Architecture
+
+### 4.1. Agent Sandbox Showcase (gVisor Runtime & Warm Pools)
+The Agent Sandbox showcase demonstrates secure, sub-second isolated agent execution environments on GKE.
+*   **Runtime Isolation**: Utilizes GKE Sandbox (`sandbox.gke.io/runtime: gvisor`) to provide a secure kernel boundary for untrusted code execution.
+*   **Custom Resource Definitions (CRDs)**: Leverages custom CRDs (`SandboxTemplate`) to specify workload pod requirements and networking profiles.
+*   **Warm Pool Probes**: A dedicated controller (`SandboxWarmPool`) actively monitors and maintains pre-warmed sandbox pods to guarantee sub-second claim allocation.
+*   **Standalone Gateway**: External traffic is routed via an independent GKE Gateway API (`gke-l7-gxlb`) directly to the internal Sandbox Router pod.
+
+### 4.2. GPU Model Inference Showcase (Gemma 2B on vLLM Tutorial Alignment)
 To align the GPU Model Inference showcase with Google Cloud's official production reference architecture (`https://cloud.google.com/kubernetes-engine/docs/tutorials/serve-gemma-gpu-vllm`), the feature incorporates the following design pillars:
 
 1.  **Official Google Cloud Serving Container**: Utilizes Google's official prebuilt and optimized PyTorch vLLM serving container (`us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma`).
@@ -161,7 +170,7 @@ To align the GPU Model Inference showcase with Google Cloud's official productio
 
 ---
 
-## 4. Autonomous Multi-Agent Teamwork Architecture
+## 5. Autonomous Multi-Agent Teamwork Architecture
 
 Development on the Showcase Hub is managed by an autonomous AI engineering team executing a continuous GitOps workflow.
 
@@ -212,7 +221,7 @@ sequenceDiagram
 
 ---
 
-## 5. Execution Modes Comparison
+## 6. Execution Modes Comparison
 
 | Feature / Dimension | Local / Mock Mode (`MODE=MOCK`) | Real GKE Mode (`MODE=REAL`) |
 | :--- | :--- | :--- |
