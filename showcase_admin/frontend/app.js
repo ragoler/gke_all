@@ -96,9 +96,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             <span class="status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="action-buttons">
-                            <button class="btn-secondary btn-logs" data-name="${item.name}">Open Console</button>
+                            <button class="btn-secondary btn-logs" data-name="${item.name}">Logs</button>
                             ${item.status === "ACTIVE" ? `
-                                <a href="${item.reach_out_url}" class="btn-secondary" target="_blank">Reach Out URL</a>
+                                <a href="${item.reach_out_url}" class="btn-secondary">Feature dashboard</a>
                             ` : `
                                 <button class="btn-secondary" disabled>Provisioning...</button>
                             `}
