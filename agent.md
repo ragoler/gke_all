@@ -12,7 +12,7 @@ Every development milestone or feature task **MUST** conclude with robust automa
 2. **Coverage Requirement**: Tests must cover both positive success paths and negative error/rejection handling (e.g., basic auth failures, JWT expiration, k8s exceptions, invalid namespaces).
 3. **Execution Verification**: Before marking any task or milestone as `[x]` in `plan.md`, the agent **MUST** execute the entire pytest suite inside the virtual environment:
    ```bash
-   source .venv/bin/activate && pytest tests/
+   .venv/bin/pytest tests/
    ```
 4. **Zero Tolerance**: The test suite must pass with 100% success (zero failures or errors) before the agent concludes its turn.
 
@@ -93,7 +93,7 @@ When interacting with human administrators or researchers during planning and de
 ## Rule 12: Autonomous Execution Mandate
 To maximize engineering velocity and autonomous execution:
 
-1. **Proactive Verification & Testing**: Agents **MUST** proactively execute the automated testing suite (`source .venv/bin/activate && pytest tests/`) whenever code changes occur. Human permission is strictly not required.
+1. **Proactive Verification & Testing**: Agents **MUST** proactively execute the automated testing suite (`.venv/bin/pytest tests/`) whenever code changes occur. Human permission is strictly not required.
 2. **Proactive Infrastructure Updates**: Whenever container code or deployment scripts are modified, agents must proactively execute container compilation (`scripts/build_and_push.sh`) and pod restarts (`kubectl rollout restart`) to maintain continuous live synchronization on GKE.
 
 ---
