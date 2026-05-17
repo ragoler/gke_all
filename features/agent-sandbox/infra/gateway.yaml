@@ -4,7 +4,7 @@ metadata:
   name: agent-sandbox-gateway
   namespace: ${NAMESPACE}
 spec:
-  gatewayClassName: gke-l7-global-external-managed
+  gatewayClassName: gke-l7-gxlb # Standard GKE L7 Load Balancer
   listeners:
   - name: http
     port: 80
