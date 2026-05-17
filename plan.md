@@ -49,14 +49,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
 
 ## Phase 2: Architectural Evolution (In Progress)
 
-### [ ] Milestone 8: Refactor GPU Model Inference to Official GKE Tutorial Architecture (Gemma 2B on vLLM)
+### [x] Milestone 8: Refactor GPU Model Inference to Official GKE Tutorial Architecture (Gemma 2B on vLLM)
 *   **Objective**: Redesign the `gpu-inference` showcase to match Google Cloud's official production tutorial (`https://cloud.google.com/kubernetes-engine/docs/tutorials/serve-gemma-gpu-vllm`), replacing custom CSI volume mounts with direct Model Garden ID injection and `/dev/shm` IPC memory volumes.
 *   **Tasks**:
-    - `[ ]` Refactor `features/gpu-inference/infra/vllm-deployment.yaml` to use Google Cloud's official prebuilt container (`us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma`).
-    - `[ ]` Add an `emptyDir` volume with `medium: Memory` mounted at `/dev/shm` to provide IPC shared memory for PyTorch tensor processing.
-    - `[ ]` Inject `MODEL_ID: google/gemma-2b-it` directly into the container environment variables.
-    - `[ ]` Ensure standalone GKE Gateway API (`gke-l7-gxlb`) and CORS policies remain pristine.
-    - `[ ]` Author automated unit and mock validation tests confirming correct manifest generation before completion.
+    - `[x]` Refactor `features/gpu-inference/infra/vllm-deployment.yaml` to use Google Cloud's official prebuilt container (`us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma`).
+    - `[x]` Add an `emptyDir` volume with `medium: Memory` mounted at `/dev/shm` to provide IPC shared memory for PyTorch tensor processing.
+    - `[x]` Inject `MODEL_ID: google/gemma-2b-it` directly into the container environment variables.
+    - `[x]` Ensure standalone GKE Gateway API (`gke-l7-gxlb`) and CORS policies remain pristine.
+    - `[x]` Author automated unit and mock validation tests confirming correct manifest generation before completion.
 
 ### [ ] Milestone 9: Live GKE Integration Testing Harness
 *   **Objective**: Establish a robust integration testing harness (`/tests/integration/test_live_gke.py`) that verifies real GKE cluster operations, gateway routing, and custom resource allocations when `MODE=REAL`.
