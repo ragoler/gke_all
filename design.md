@@ -47,11 +47,11 @@ graph TD
 
         subgraph InferenceShowcase [Namespace: gke-showcase-inference]
             InferenceGateway[Inference Gateway IP_C]
-            vLLM[vLLM Model Server Pod]
-            GCSFuse[GCS FUSE CSI Driver]
+            vLLM[Official vLLM Model Server Pod]
+            SharedMem[/dev/shm Memory Volume]
             
             InferenceGateway -->|Route: /| vLLM
-            vLLM -->|Mounts| GCSFuse
+            vLLM -->|Mount IPC Memory| SharedMem
         end
     end
 
@@ -121,7 +121,7 @@ Each showcase feature is fully encapsulated under `/features/<name>/`. A develop
     └── gpu-inference/              # FEATURE 2: Spot L4 GPU vLLM
         ├── app/                    # Playroom chat server container source
         ├── frontend/               # Standalone Chat UI assets
-        └── infra/                  # Dedicated Gateway, vLLM Deployment, GCSFuse manifests
+        └── infra/                  # Dedicated Gateway, vLLM Deployment, /dev/shm IPC manifests
 ```
 
 **Build-Time UI Aggregation**: During `docker build` of `showcase_admin:latest`, the build script dynamically copies all folders from `/features/*/frontend/` into the Admin container's static web root at `/frontend/features/`. The Admin FastAPI server dynamically serves these standalone views when `/features/<name>/` is accessed.
@@ -148,6 +148,16 @@ To provide comprehensive cluster visibility, the platform includes a dedicated *
     *   **Workloads**: Total Namespaces, active Deployments, total running vs pending Pods.
     *   **Accelerators**: Active Nvidia L4 GPU allocations (`nvidia.com/gpu`), active gVisor sandbox nodes (`sandbox.gke.io/runtime: gvisor`).
 *   **UI Presentation**: Rendered in a dedicated tab in the SPA dashboard, updating via periodic polling to provide real-time cluster diagnostic health.
+
+---
+
+### 3.7. Official GKE Gemma GPU Serving Architecture (vLLM Tutorial Alignment)
+To align the GPU Model Inference showcase with Google Cloud's official production reference architecture (`https://cloud.google.com/kubernetes-engine/docs/tutorials/serve-gemma-gpu-vllm`), the feature incorporates the following design pillars:
+
+1.  **Official Google Cloud Serving Container**: Utilizes Google's official prebuilt and optimized PyTorch vLLM serving container (`us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:gemma`).
+2.  **In-Memory IPC Shared Memory Mount (`/dev/shm`)**: To support high-throughput multi-processing tensor communication across PyTorch CUDA workers without memory allocation bottlenecks, the Kubernetes Deployment explicitly mounts an `emptyDir` volume with `medium: Memory` at `/dev/shm` (providing dynamic multi-gigabyte RAM allocations).
+3.  **Direct Model ID Injection**: Instead of custom CSI volume drivers, the deployment injects exact Model Garden identifiers (`MODEL_ID: google/gemma-2b-it`) via pod environment variables. The container downloads weights on warm-start directly from public model garden registries or via mounted HuggingFace token secrets.
+4.  **Standalone Load Balancing**: A dedicated GKE Gateway API (`gke-l7-gxlb`) routes external HTTP traffic to a co-located playroom UI service and inference proxy port (`8000`).
 
 ---
 
