@@ -2,11 +2,11 @@ import asyncio
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import yaml
 import httpx
 from kubernetes_asyncio import client, config as k8s_config
-from showcase_admin.app import config
+from showcase_admin.app import config, database
 from showcase_admin.app.database import ShowcaseModel
 
 _k8s_initialized = False
@@ -140,7 +140,7 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
         showcase.namespace = target_ns
         showcase.status = "DEPLOYING"
         showcase.reach_out_url = None
-        showcase.installed_at = datetime.utcnow()
+        showcase.installed_at = database.get_utc_now()
         db.commit()
         
         if config.MODE == "MOCK":

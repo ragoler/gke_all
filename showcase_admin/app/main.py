@@ -7,7 +7,7 @@ import os
 import uuid
 import httpx
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from showcase_admin.app import config, database, auth, k8s_client
 
@@ -134,7 +134,7 @@ async def deploy_feature(
     showcase.namespace = target_ns
     showcase.status = "DEPLOYING"
     showcase.reach_out_url = None
-    showcase.installed_at = datetime.utcnow()
+    showcase.installed_at = database.get_utc_now()
     db.commit()
     
     # Dispatch actual GKE deployment in the background

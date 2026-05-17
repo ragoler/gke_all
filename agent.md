@@ -95,3 +95,11 @@ To maximize engineering velocity and autonomous execution:
 
 1. **Proactive Verification & Testing**: Agents **MUST** proactively execute the automated testing suite (`.venv/bin/python3 -m pytest tests/`) whenever code changes occur. Human permission is strictly not required.
 2. **Proactive Infrastructure Updates**: Whenever container code or deployment scripts are modified, agents must proactively execute container compilation (`scripts/build_and_push.sh`) and pod restarts (`kubectl rollout restart`) to maintain continuous live synchronization on GKE.
+
+---
+
+## Rule 13: Deprecation & Warning Prohibition
+To guarantee long-term code longevity and pristine execution:
+
+1. **Zero Deprecated APIs**: Agents must never introduce deprecated Python libraries, functions (e.g., `datetime.utcnow`), or outdated Kubernetes apiVersions.
+2. **Zero Test Warnings**: The automated test verification suite must execute with exactly zero warnings. Any deprecation or runtime warning must be treated with the same severity as a test failure and resolved immediately.

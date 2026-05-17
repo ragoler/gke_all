@@ -1,8 +1,12 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 from showcase_admin.app import config
+
+# Helper for timezone-aware UTC timestamps converted naive for SQLite compatibility
+def get_utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # Relational Base class
 Base = declarative_base()
@@ -34,7 +38,7 @@ class ShowcaseModel(Base):
     status = Column(String, default="DORMANT", nullable=False)     # DORMANT, DEPLOYING, ACTIVE, ERROR
     reach_out_url = Column(String, nullable=True)                 # reach out routing gateway URL
     installed_at = Column(DateTime, nullable=True)
-    last_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 def init_db():
     # Create tables if they don't exist
