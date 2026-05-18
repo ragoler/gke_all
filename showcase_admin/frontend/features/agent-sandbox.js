@@ -5,6 +5,18 @@
 document.addEventListener("DOMContentLoaded", () => {
     // Local state
     let activeClaims = [];
+    let chatHistories = {};
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function renderChatHistory(id) {
+        if (!chatHistories[id] || chatHistories[id].length === 0) {
+            return `<div class="chat-msg ai">[SYSTEM] Isolated secure terminal workspace ready. Send dynamic code/queries instantly.</div>`;
+        }
+        return chatHistories[id].map(msg => `<div class="chat-msg ${msg.sender}">${escapeHtml(msg.text)}</div>`).join("");
+    }
     
     // DOM Elements
     const sandboxGrid = document.getElementById("sandbox-grid");
@@ -55,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 <!-- Chat Playroom window -->
                 <div class="sandbox-chat-box" id="chat-box-${item.id}">
-                    <div class="chat-msg ai">[SYSTEM] Isolated secure terminal workspace ready. Send dynamic code/queries instantly.</div>
+                    ${renderChatHistory(item.id)}
                 </div>
                 
                 <!-- Chat input controls -->
@@ -119,7 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendChatMessage(id, text, "user");
         inputField.value = "";
         
-        const aiDiv = appendChatMessage(id, "...", "ai");
+        const { div: aiDiv, msgObj: aiMsg } = appendChatMessage(id, "Executing inside gVisor...", "ai");
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
@@ -131,15 +143,16 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) throw new Error("Sandbox routing failed.");
             const data = await response.json();
             aiDiv.textContent = data.reply;
+            aiMsg.text = data.reply;
         } catch (err) {
             aiDiv.textContent = `[ERROR] Request failed: ${err.message}`;
+            aiMsg.text = `[ERROR] Request failed: ${err.message}`;
         }
     };
     
     // Request inspiriting quote from sandbox Gemini / local model
     window.requestQuote = async (id) => {
-        const chatBox = document.getElementById(`chat-box-${id}`);
-        const aiDiv = appendChatMessage(id, "Calling sandbox models...", "ai");
+        const { div: aiDiv, msgObj: aiMsg } = appendChatMessage(id, "Calling sandbox models...", "ai");
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
@@ -151,21 +164,27 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) throw new Error("Failed to retrieve quotes.");
             const data = await response.json();
             aiDiv.textContent = data.quote;
+            aiMsg.text = data.quote;
         } catch (err) {
             aiDiv.textContent = `[ERROR] Model call failed: ${err.message}`;
+            aiMsg.text = `[ERROR] Model call failed: ${err.message}`;
         }
     };
     
     function appendChatMessage(id, text, sender) {
+        if (!chatHistories[id]) chatHistories[id] = [];
+        const msgObj = { text, sender };
+        chatHistories[id].push(msgObj);
+        
         const chatBox = document.getElementById(`chat-box-${id}`);
-        if (!chatBox) return null;
+        if (!chatBox) return { div: null, msgObj };
         
         const div = document.createElement("div");
         div.className = `chat-msg ${sender}`;
         div.textContent = text;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
-        return div;
+        return { div, msgObj };
     }
     
     // Initial bootstrap loading
