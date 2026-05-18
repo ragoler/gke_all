@@ -10,11 +10,12 @@ Every development milestone or feature task **MUST** conclude with robust automa
 ### Operational Requirements
 1. **Comprehensive Test Mandate**: For every milestone or architectural feature, agents **MUST** author both isolated unit tests (`/tests/unit`) and live GKE integration tests (`/tests/integration`) designed to execute against active cloud infrastructure when `MODE=REAL`.
 2. **Coverage Requirement**: Tests must cover both positive success paths and negative error/rejection handling (e.g., basic auth failures, JWT expiration, k8s exceptions, invalid namespaces).
-3. **Execution Verification**: Before marking any task or milestone as `[x]` in `plan.md`, the agent **MUST** execute the entire pytest suite inside the virtual environment:
+3. **Execution Verification**: Before marking any code or infrastructure task as `[x]` in `plan.md`, the agent **MUST** execute the entire pytest suite inside the virtual environment:
    ```bash
    .venv/bin/pytest tests/
    ```
-4. **Zero Tolerance**: The test suite must pass with 100% success (zero failures or errors) before the agent concludes its turn.
+   *(Note: Running pytest is not required when making edits exclusively to markdown documentation files like `*.md`)*
+4. **Zero Tolerance**: For code and infrastructure tasks, the test suite must pass with 100% success (zero failures or errors) before the agent concludes its turn.
 
 ---
 

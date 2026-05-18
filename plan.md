@@ -146,14 +146,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[ ]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
     - `[ ]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.
 
-### [ ] Milestone 18: Migrate GPU Inference Showcase to Official GKE Inference Gateway (`llm-d`)
-*   **Objective**: Upgrade the GPU inference showcase networking from a standard Kubernetes Service/Gateway to Google Cloud's advanced AI-aware GKE Inference Gateway (`llm-d`), explicitly following the architectural guide at https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deploy-gke-inference-gateway.
+### [ ] Milestone 18: Showcase Feature 3 - Advanced GKE Inference Gateway (`inference-gateway`)
+*   **Objective**: Introduce a brand new showcase feature (`features/inference-gateway/`) demonstrating Google Cloud's AI-aware GKE Inference Gateway (`llm-d`), providing request priority queueing, token-aware load balancing, and serving criticality as documented at https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deploy-gke-inference-gateway.
 *   **Tasks**:
-    - `[ ]` Replace standard `vllm-service.yaml` and `vllm-deployment.yaml` with standalone multi-port vLLM model server deployments compatible with NEG attachment.
+    - `[ ]` Package a standalone showcase structure under `features/inference-gateway/` (co-locating `app/`, `frontend/`, and `infra/`).
     - `[ ]` Author `InferencePool` manifest (`inference.networking.k8s.io/v1`) referencing the model server target ports and compute configuration.
     - `[ ]` Author `InferenceObjective` manifest (`inference.networking.x-k8s.io/v1alpha2`) to configure request priority queueing and serving criticality.
-    - `[ ]` Refactor `feature-route.yaml` to route incoming traffic from `gpu-inference-gateway` to the backend `InferencePool` custom resource.
-    - `[ ]` Update `k8s_client.py` to support querying and resolving `InferencePool` status and external Gateway endpoints when `MODE=REAL`.
-    - `[ ]` Author `/tests/integration/test_inference_gateway_crds.py` verifying the generation and validation of `InferencePool` and `InferenceObjective` manifests under mock state.
+    - `[ ]` Author standalone `gateway.yaml` and `http-route.yaml` routing incoming traffic directly to the backend `InferencePool` custom resource.
+    - `[ ]` Update `AVAILABLE_SHOWCASES` in `main.py` and `k8s_client.py` to register and manage the new `inference-gateway` showcase lifecycle.
+    - `[ ]` Author `/tests/integration/test_inference_gateway_showcase.py` verifying manifest expansion and CRD handling under mock state.
     - `[ ]` Execute automated test suite and verify 100% passing status before completion.
 
