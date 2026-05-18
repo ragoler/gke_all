@@ -330,7 +330,7 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
 # DYNAMIC PLAYROOM INTEGRATION REST APIs (MOCK & GKE)
 # ----------------------------------------------------------------------
 
-async def execute_http_with_retry(method: str, url: str, headers: dict = None, json_payload: dict = None, max_retries: int = 5, timeout: float = 45.0) -> httpx.Response:
+async def execute_http_with_retry(method: str, url: str, headers: dict = None, json_payload: dict = None, max_retries: int = 7, timeout: float = 45.0) -> httpx.Response:
     last_exc = None
     last_response = None
     async with httpx.AsyncClient() as client_http:
@@ -343,7 +343,7 @@ async def execute_http_with_retry(method: str, url: str, headers: dict = None, j
                 else:
                     response = await client_http.request(method, url, headers=headers, json=json_payload, timeout=timeout)
 
-                if response.status_code in (502, 503, 504):
+                if response.status_code in (404, 502, 503, 504):
                     last_response = response
                     last_exc = None
                     if attempt < max_retries:

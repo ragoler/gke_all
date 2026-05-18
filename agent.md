@@ -162,3 +162,13 @@ sequenceDiagram
 1.  **Orchestrator & Workflow Decision Step**: In accordance with Google's modern subagent design (`native_subagent_config_v3.py`), the master Orchestrator Agent must execute an explicit decision step prior to launching subagents, ensuring tasks are delegated only when necessary to prevent context window saturation.
 2.  **Scoped Skillsets (`SkillToolset`)**: Rather than passing massive, unsegregated tool lists to every subagent, specialized subagents are equipped strictly with domain-specific skillsets (e.g., GKE QA subagent only receives Kubernetes interaction tools).
 3.  **Isolated Git Workspaces (`branch`)**: All subagents modifying code must operate in isolated branched workspaces (`Workspace="branch"`) to prevent merge conflicts and preserve the master working tree.
+
+---
+
+## Rule 8: Testing Subagent API Mandate & Infrastructure Integrity
+Testing subagents invoked to verify live cloud deployments or run integration tests **MUST** strictly respect architectural boundaries and operate exactly like legitimate external clients.
+
+### Operational Requirements
+1. **API-Exclusive Interaction**: To test showcase features, claim sandboxes, dispatch messages, or request quotes, testing subagents **MUST** interact exclusively with our official `showcase-admin` REST API endpoints (e.g., `POST /api/sandboxes` to claim a sandbox pod, `POST /api/sandboxes/{id}/quote` to generate quotes).
+2. **Prohibition of Manual Resource Claims**: Testing subagents are strictly prohibited from bypassing the backend API by executing manual `kubectl apply` commands to create custom resources (such as `SandboxClaim` manifests). All resource allocation must flow through the backend Python service.
+3. **Prohibition of Finalizer Hacks**: Testing subagents must never execute `kubectl patch` commands to remove Kubernetes finalizers (e.g., `/metadata/finalizers`) to artificially accelerate resource or namespace deletion. Subagents must patiently monitor the natural de-provisioning cycle of GCP Network Endpoint Groups (NEGs) and external LoadBalancers.
