@@ -325,10 +325,28 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
             try:
                 pods = await core_v1.list_namespaced_pod(namespace)
                 if not pods.items:
-                    return "No pods found in showcase namespace."
-                target_pod = pods.items[0].metadata.name
-                logs = await core_v1.read_namespaced_pod_log(target_pod, namespace, tail_lines=150)
-                return logs
+                    return f"No pods active in namespace '{namespace}'."
+                
+                aggregated_logs = []
+                for pod in pods.items:
+                    pod_name = pod.metadata.name
+                    phase = pod.status.phase
+                    container_names = [c.name for c in pod.spec.containers]
+                    
+                    for c_name in container_names:
+                        header = f"=== [{pod_name} (Container: {c_name}, Status: {phase})] ==="
+                        try:
+                            c_logs = await core_v1.read_namespaced_pod_log(
+                                name=pod_name,
+                                namespace=namespace,
+                                container=c_name,
+                                tail_lines=50
+                            )
+                            aggregated_logs.append(f"{header}\n{c_logs.strip()}\n")
+                        except Exception as log_err:
+                            aggregated_logs.append(f"{header}\n[Logs unavailable: {log_err}]\n")
+                
+                return "\n".join(aggregated_logs) if aggregated_logs else "No logs available."
             except Exception as e:
                 return f"Failed to retrieve live GKE logs: {str(e)}"
 
