@@ -84,13 +84,13 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Update `index.html`, `app.js`, and `style.css` to lock/disable Deploy/Teardown buttons and show a spinning indicator during termination.
     - `[x]` Author automated unit test `/tests/unit/test_lifecycle_sync.py` verifying correct status transitions under mock mode.
 
-### [ ] Milestone 11.1: Cloud Gateway Resilience & HTTP 502/503 Retries
+### [x] Milestone 11.1: Cloud Gateway Resilience & HTTP 502/503 Retries
 *   **Objective**: Ensure backend feature endpoints (`message_sandbox_claim`, `quote_sandbox_claim`, `query_gpu_inference_server`) automatically retry with exponential backoff when encountering temporary GCP Global LoadBalancer 502/503 synchronization errors during NEG initialization.
 *   **Tasks**:
-    - `[ ]` Implement `execute_http_with_retry` helper in `k8s_client.py` to handle exponential backoff retries on HTTP 502, 503, and 504.
-    - `[ ]` Refactor feature HTTP calls in `k8s_client.py` to use the retry helper.
-    - `[ ]` Author automated integration test `/tests/unit/test_http_retry.py` verifying mock retry success and backoff behavior.
-    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+    - `[x]` Implement `execute_http_with_retry` helper in `k8s_client.py` to handle exponential backoff retries on HTTP 502, 503, and 504.
+    - `[x]` Refactor feature HTTP calls in `k8s_client.py` to use the retry helper.
+    - `[x]` Author automated integration test `/tests/unit/test_http_retry.py` verifying mock retry success and backoff behavior.
+    - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
 ### [x] Milestone 12: Repository Modularization (Approach B)
 *   **Objective**: Restructure feature folders to be 100% self-contained, housing both backend manifests and standalone frontend UI assets.
