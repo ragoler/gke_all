@@ -23,7 +23,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: demo-app
-        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/agent-sandbox-demo:latest
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/agent-sandbox-demo:latest
         ports:
         - containerPort: 8888
         securityContext:

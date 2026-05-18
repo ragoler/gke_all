@@ -57,7 +57,7 @@ spec:
           mountPath: /dev/shm
       # Container 2: Playground Chat Client
       - name: playroom-app
-        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/gke-showcase-repo/gpu-inference-playroom:latest
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/gpu-inference-playroom:latest
         env:
         - name: VLLM_API_URL
           value: "http://localhost:8000/v1"

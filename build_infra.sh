@@ -11,7 +11,7 @@ if [ -f .env ]; then
 fi
 
 # Set defaults
-PROJECT_ID=$(gcloud config get-value project)
+PROJECT_ID=${PROJECT_NAME:-$(gcloud config get-value project)}
 REGION=${REGION:-"us-west1"}
 CLUSTER_NAME=${CLUSTER_NAME:-"gke-showcase-cluster"}
 CLUSTER_VERSION=${CLUSTER_VERSION:-"1.35.2-gke.1269000"}
@@ -43,17 +43,17 @@ if [ "$DESTROY_MODE" = "true" ]; then
   echo " DESTROYING GKE FEATURE SHOWCASE INFRASTRUCTURE: ${CLUSTER_NAME}"
   echo "======================================================================"
   
-  if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
+  if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
     echo "Deleting GKE Cluster $CLUSTER_NAME in region $REGION..."
-    gcloud container clusters delete "$CLUSTER_NAME" --region="$REGION" --quiet
+    gcloud container clusters delete "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --quiet
     echo "Cluster $CLUSTER_NAME deleted successfully."
   else
     echo "Cluster $CLUSTER_NAME does not exist, skipping cluster deletion."
   fi
   
-  if gcloud artifacts repositories describe "$ARTIFACT_REGISTRY_REPO" --location="$REGION" >/dev/null 2>&1; then
+  if gcloud artifacts repositories describe "$ARTIFACT_REGISTRY_REPO" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
     echo "Deleting Artifact Registry repository $ARTIFACT_REGISTRY_REPO in location $REGION..."
-    gcloud artifacts repositories delete "$ARTIFACT_REGISTRY_REPO" --location="$REGION" --quiet
+    gcloud artifacts repositories delete "$ARTIFACT_REGISTRY_REPO" --location="$REGION" --project="$PROJECT_ID" --quiet
     echo "Repository $ARTIFACT_REGISTRY_REPO deleted successfully."
   else
     echo "Repository $ARTIFACT_REGISTRY_REPO does not exist, skipping repository deletion."
@@ -74,19 +74,31 @@ echo " NOTE: Specialized Node Pools (gVisor & GPUs) are NOT created here."
 echo " They will be provisioned dynamically when their features are deployed."
 echo "======================================================================"
 
+# Pre-flight validation: ensure target container images exist in Artifact Registry
+echo "Verifying that target container images exist in Artifact Registry..."
+for img in showcase-admin agent-sandbox-demo agent-sandbox-router gpu-inference-playroom; do
+  if ! gcloud artifacts tags list --package="$img" --repository="$ARTIFACT_REGISTRY_REPO" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    echo "Error: Container image '$img' not found in Artifact Registry repository '$ARTIFACT_REGISTRY_REPO' ($REGION)."
+    echo "Please execute ./scripts/build_and_push.sh before running ./build_infra.sh to populate required container images."
+    exit 1
+  fi
+done
+echo "Pre-flight image validation passed successfully."
+
 # Base cluster creation
-if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" >/dev/null 2>&1; then
+if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
   echo "Cluster $CLUSTER_NAME already exists."
   echo "Verifying and enabling Gateway API on existing cluster..."
-  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --gateway-api=standard --quiet || echo "Gateway API already enabled or update in progress."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --gateway-api=standard --quiet || echo "Gateway API already enabled or update in progress."
   echo "Verifying and enabling Agent Sandbox on existing cluster..."
-  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --enable-agent-sandbox --quiet || echo "Agent Sandbox already enabled or update in progress."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --enable-agent-sandbox --quiet || echo "Agent Sandbox already enabled or update in progress."
   echo "Verifying and enabling GCSFuse CSI driver on existing cluster..."
-  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --update-addons=GcsFuseCsiDriver=ENABLED --quiet || echo "GCSFuse CSI driver already enabled or update in progress."
+  gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --update-addons=GcsFuseCsiDriver=ENABLED --quiet || echo "GCSFuse CSI driver already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   gcloud beta container clusters create "$CLUSTER_NAME" \
       --region="$REGION" \
+      --project="$PROJECT_ID" \
       --cluster-version="$CLUSTER_VERSION" \
       --machine-type="$MACHINE_TYPE" \
       --num-nodes=2 \
@@ -98,19 +110,19 @@ fi
 
 # Retrieve GKE cluster credentials
 echo "Importing GKE context credentials locally..."
-gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$REGION"
+gcloud container clusters get-credentials "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID"
 
 # Provision zero-cost autoscaling specialized node pools
 echo "Provisioning zero-cost autoscaling specialized node pools..."
 gcloud container node-pools create showcase-gvisor-pool \
-    --cluster="$CLUSTER_NAME" --region="$REGION" \
+    --cluster="$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" \
     --machine-type="e2-standard-2" \
     --sandbox="type=gvisor" \
     --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
     --quiet || echo "gVisor node pool already exists or skipped."
 
 gcloud container node-pools create showcase-gpu-pool \
-    --cluster="$CLUSTER_NAME" --region="$REGION" \
+    --cluster="$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" \
     --machine-type="g2-standard-8" \
     --accelerator="type=nvidia-l4,count=1" \
     --spot \
