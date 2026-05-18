@@ -25,7 +25,7 @@ if USE_VERTEXAI:
         gemini_client = genai.Client(
             vertexai=True,
             project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-            location=os.environ.get("REGION", "us-central1"),
+            location="us-central1",
         )
         logger.info("Gemini client initialized with Vertex AI (Workload Identity)")
     except Exception as e:
