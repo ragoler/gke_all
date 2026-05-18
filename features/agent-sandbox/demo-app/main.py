@@ -20,20 +20,22 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "gemma-2b-it").strip()
 USE_VERTEXAI = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").upper() == "TRUE"
 gemini_client = None
 
-if not OPENAI_API_BASE:
-    if USE_VERTEXAI:
+if USE_VERTEXAI:
+    try:
         gemini_client = genai.Client(
             vertexai=True,
             project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
             location=os.environ.get("REGION", "us-central1"),
         )
         logger.info("Gemini client initialized with Vertex AI (Workload Identity)")
-    else:
+    except Exception as e:
+        logger.warning(f"Failed to initialize Vertex AI client: {e}")
+else:
+    try:
         gemini_client = genai.Client()
         logger.info("Gemini client initialized with local API key")
-else:
-    logger.info(f"Bypassing Gemini Client. Will route queries locally to vLLM base URL: {OPENAI_API_BASE}")
-
+    except Exception as e:
+        logger.warning(f"Failed to initialize Gemini API key client: {e}")
 class MessagePayload(BaseModel):
     message: str
 
@@ -43,12 +45,12 @@ async def reply_message(payload: MessagePayload, x_sandbox_id: str = Header(defa
     return {"reply": f"[{x_sandbox_id}] {payload.message}"}
 
 @app.get("/quote")
-async def get_quote():
-    logger.info("Received request for quote")
+async def get_quote(x_sandbox_provider: str = Header(default="vertex")):
+    logger.info(f"Received request for quote (provider: {x_sandbox_provider})")
     start_time = time.time()
     
     try:
-        if OPENAI_API_BASE:
+        if OPENAI_API_BASE and x_sandbox_provider.lower() == "vllm":
             # Option 2: Query local self-hosted vLLM service via GKE cluster internal DNS
             logger.info(f"Calling self-hosted vLLM model at {OPENAI_API_BASE}")
             async with httpx.AsyncClient() as http_client:

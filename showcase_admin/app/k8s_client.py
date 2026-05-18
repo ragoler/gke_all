@@ -493,6 +493,7 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     headers = {
         "X-Sandbox-Id": claim_id,
         "X-Sandbox-Namespace": namespace,
+        "X-Sandbox-Provider": provider,
         "Content-Type": "application/json"
     }
     
