@@ -87,7 +87,7 @@ def get_feature_namespace(db: Session, feature_name: str) -> str:
 # CORE BACKEND ADMINISTRATIVE APIs
 # ----------------------------------------------------------------------
 @app.get("/api/showcases", dependencies=api_dependencies)
-async def list_showcases(db: Session = Depends(database.get_db)):
+async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
     db_showcases = db.query(database.ShowcaseModel).all()
     status_map = {item.name: item for item in db_showcases}
     
@@ -98,8 +98,10 @@ async def list_showcases(db: Session = Depends(database.get_db)):
         # Dynamically resolve reach out URL pointing to localhost or external Gateway IP
         reach_out_url = None
         if db_item and db_item.status == "ACTIVE":
-            # Redirect to dedicated served frontend routes
             reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+            
+        if db_item and db_item.status in ("DEPLOYING", "PROVISIONING"):
+            background_tasks.add_task(k8s_client.check_and_update_showcase_status, name, db_item.namespace)
             
         result.append({
             "name": name,

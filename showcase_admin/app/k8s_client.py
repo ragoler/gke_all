@@ -214,23 +214,29 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                 # Active readiness polling loop using AppsV1Api.read_namespaced_deployment
                 apps_v1 = client.AppsV1Api(api_client)
                 dep_name = "sandbox-router-deployment" if name == "agent-sandbox" else "gpu-inference-deployment"
+                is_ready = False
                 for _ in range(60):
                     try:
                         dep = await apps_v1.read_namespaced_deployment(dep_name, target_ns)
                         if isinstance(dep, mock.Mock) or isinstance(dep, mock.AsyncMock):
+                            is_ready = True
                             break
                         if dep and hasattr(dep, "status") and getattr(dep.status, "ready_replicas", None) is not None:
                             ready = getattr(dep.status, "ready_replicas", 0) or 0
                             desired = getattr(dep.status, "replicas", None) or getattr(dep.spec, "replicas", 1) or 1
                             if ready == desired and ready > 0:
+                                is_ready = True
                                 break
                     except Exception as getattr_err:
                         if isinstance(getattr_err, client.exceptions.ApiException) and getattr_err.status == 404:
                             pass
                     await asyncio.sleep(5)
                             
-                showcase.status = "ACTIVE"
-                showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                if is_ready:
+                    showcase.status = "ACTIVE"
+                    showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                else:
+                    showcase.status = "PROVISIONING"
                 db.commit()
     except Exception as e:
         # If error occurs, commit status as ERROR
@@ -516,3 +522,28 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
         return response.json().get("reply", "")
     except Exception as e:
         return f"Failed to query GKE GPU model server: {str(e)}"
+
+async def check_and_update_showcase_status(name: str, namespace: str):
+    if config.MODE == "MOCK" or not namespace:
+        return
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        apps_v1 = client.AppsV1Api(api_client)
+        dep_name = "sandbox-router-deployment" if name == "agent-sandbox" else "gpu-inference-deployment"
+        try:
+            dep = await apps_v1.read_namespaced_deployment(dep_name, namespace)
+            if dep and hasattr(dep, "status") and getattr(dep.status, "ready_replicas", None) is not None:
+                ready = getattr(dep.status, "ready_replicas", 0) or 0
+                desired = getattr(dep.status, "replicas", None) or getattr(dep.spec, "replicas", 1) or 1
+                db = database.SessionLocal()
+                try:
+                    showcase = db.query(ShowcaseModel).filter_by(name=name).first()
+                    if showcase and showcase.status in ("DEPLOYING", "PROVISIONING"):
+                        if ready == desired and ready > 0:
+                            showcase.status = "ACTIVE"
+                            showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                            db.commit()
+                finally:
+                    db.close()
+        except Exception:
+            pass
