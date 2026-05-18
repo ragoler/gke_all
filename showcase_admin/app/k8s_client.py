@@ -329,6 +329,42 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
 # DYNAMIC PLAYROOM INTEGRATION REST APIs (MOCK & GKE)
 # ----------------------------------------------------------------------
 
+async def execute_http_with_retry(method: str, url: str, headers: dict = None, json_payload: dict = None, max_retries: int = 5, timeout: float = 45.0) -> httpx.Response:
+    last_exc = None
+    last_response = None
+    async with httpx.AsyncClient() as client_http:
+        for attempt in range(max_retries + 1):
+            try:
+                if method.upper() == "GET":
+                    response = await client_http.get(url, headers=headers, timeout=timeout)
+                elif method.upper() == "POST":
+                    response = await client_http.post(url, headers=headers, json=json_payload, timeout=timeout)
+                else:
+                    response = await client_http.request(method, url, headers=headers, json=json_payload, timeout=timeout)
+
+                if response.status_code in (502, 503, 504):
+                    last_response = response
+                    last_exc = None
+                    if attempt < max_retries:
+                        await asyncio.sleep(2 ** attempt * 2)
+                        continue
+                    else:
+                        response.raise_for_status()
+                return response
+            except (httpx.RequestError, httpx.HTTPError) as e:
+                last_exc = e
+                last_response = None
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt * 2)
+                    continue
+                else:
+                    raise e
+        if last_exc:
+            raise last_exc
+        if last_response:
+            last_response.raise_for_status()
+
+
 # --- FEATURE 1: AGENT SANDBOX CLAIMS ---
 async def list_sandbox_claims(namespace: str) -> list:
     if config.MODE == "MOCK":
@@ -429,14 +465,13 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
         vllm_endpoint = f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1"
         pass
         
-    async with httpx.AsyncClient() as client_http:
-        try:
-            response = await client_http.post(url, json=payload, headers=headers, timeout=45.0)
-            if response.status_code != 200:
-                raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
-            return response.json().get("reply", "")
-        except Exception as e:
-            return f"Failed to communicate with GKE sandbox: {str(e)}"
+    try:
+        response = await execute_http_with_retry("POST", url, headers=headers, json_payload=payload, timeout=45.0)
+        if response.status_code != 200:
+            raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
+        return response.json().get("reply", "")
+    except Exception as e:
+        return f"Failed to communicate with GKE sandbox: {str(e)}"
 
 async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm_namespace: str) -> str:
     if config.MODE == "MOCK":
@@ -454,14 +489,13 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
         "Content-Type": "application/json"
     }
     
-    async with httpx.AsyncClient() as client_http:
-        try:
-            response = await client_http.get(url, headers=headers, timeout=45.0)
-            if response.status_code != 200:
-                raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
-            return response.json().get("quote", "")
-        except Exception as e:
-            return f"Failed to fetch quotes from GKE sandbox: {str(e)}"
+    try:
+        response = await execute_http_with_retry("GET", url, headers=headers, timeout=45.0)
+        if response.status_code != 200:
+            raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
+        return response.json().get("quote", "")
+    except Exception as e:
+        return f"Failed to fetch quotes from GKE sandbox: {str(e)}"
 
 # --- FEATURE 2: GPU MODEL PLAYROOM INFERENCE ---
 async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
@@ -474,11 +508,10 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
         gateway_ip = await get_gateway_ip(namespace, "gpu-inference-gateway")
         url = f"http://{gateway_ip}/chat"
     
-    async with httpx.AsyncClient() as client_http:
-        try:
-            response = await client_http.post(url, json={"prompt": prompt}, timeout=45.0)
-            if response.status_code != 200:
-                raise Exception(f"GPU Inference server returned error: {response.text}")
-            return response.json().get("reply", "")
-        except Exception as e:
-            return f"Failed to query GKE GPU model server: {str(e)}"
+    try:
+        response = await execute_http_with_retry("POST", url, json_payload={"prompt": prompt}, timeout=45.0)
+        if response.status_code != 200:
+            raise Exception(f"GPU Inference server returned error: {response.text}")
+        return response.json().get("reply", "")
+    except Exception as e:
+        return f"Failed to query GKE GPU model server: {str(e)}"
