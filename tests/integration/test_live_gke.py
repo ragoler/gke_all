@@ -165,18 +165,32 @@ async def test_system_healthz_probes(live_admin_url):
 @pytest.mark.anyio
 async def test_agent_sandbox_dynamic_deployment(live_admin_url):
     """Test 11: Audit POST /deploy on agent-sandbox and verify ACTIVE state transition."""
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        try:
+            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
+            if ns.status.phase == "Terminating":
+                for _ in range(30):
+                    await asyncio.sleep(2.0)
+                    try:
+                        await core_v1.read_namespace("gke-showcase-agent-sandbox")
+                    except Exception:
+                        break
+        except Exception:
+            pass
+            
     async with httpx.AsyncClient() as http:
         res = await http.post(
             f"{live_admin_url}/api/showcases/agent-sandbox/deploy", 
             json={"namespace": "gke-showcase-agent-sandbox"},
             headers=AUTH_HEADERS,
-            timeout=15.0
+            timeout=25.0
         )
         assert res.status_code == 200
         data = res.json()
         assert data["status"] in ("DEPLOYING", "ACTIVE")
         
-        await k8s_client.init_k8s_connection()
         async with client.ApiClient() as api:
             core_v1 = client.CoreV1Api(api)
             ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
@@ -213,25 +227,6 @@ async def test_agent_sandbox_message_routing(live_admin_url):
         assert msg_res.status_code == 200
         assert "Live integration verification prompt" in msg_res.json()["reply"]
 
-@pytest.mark.gke
-@pytest.mark.anyio
-async def test_agent_sandbox_teardown_lock(live_admin_url):
-    """Test 14: Audit DELETE /teardown locking and namespace de-provisioning."""
-    async with httpx.AsyncClient() as http:
-        res = await http.delete(
-            f"{live_admin_url}/api/showcases/agent-sandbox/teardown",
-            headers=AUTH_HEADERS,
-            timeout=15.0
-        )
-        assert res.status_code == 200
-        assert res.json()["status"] == "TERMINATING"
-        
-        await k8s_client.init_k8s_connection()
-        async with client.ApiClient() as api:
-            core_v1 = client.CoreV1Api(api)
-            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
-            assert ns.status.phase in ("Terminating", "Active")
-
 # ==============================================================================
 # PART 3: vLLM GPU INFERENCE INTEGRATION (4 Tests)
 # ==============================================================================
@@ -239,13 +234,28 @@ async def test_agent_sandbox_teardown_lock(live_admin_url):
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_gpu_inference_dynamic_deployment(live_admin_url):
-    """Test 15: Audit POST /deploy on gpu-inference and PROVISIONING status transitions."""
+    """Test 14: Audit POST /deploy on gpu-inference and PROVISIONING status transitions."""
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        try:
+            ns = await core_v1.read_namespace("gke-showcase-gpu-inference")
+            if ns.status.phase == "Terminating":
+                for _ in range(30):
+                    await asyncio.sleep(2.0)
+                    try:
+                        await core_v1.read_namespace("gke-showcase-gpu-inference")
+                    except Exception:
+                        break
+        except Exception:
+            pass
+
     async with httpx.AsyncClient() as http:
         res = await http.post(
             f"{live_admin_url}/api/showcases/gpu-inference/deploy",
             json={"namespace": "gke-showcase-gpu-inference"},
             headers=AUTH_HEADERS,
-            timeout=15.0
+            timeout=25.0
         )
         assert res.status_code == 200
         data = res.json()
@@ -254,7 +264,7 @@ async def test_gpu_inference_dynamic_deployment(live_admin_url):
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_spot_gpu_node_pool_autoscaling():
-    """Test 16: Audit Spot L4 GPU node pool scale-up requests and node taints."""
+    """Test 15: Audit Spot L4 GPU node pool scale-up requests and node taints."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
@@ -267,7 +277,7 @@ async def test_spot_gpu_node_pool_autoscaling():
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_gpu_inference_multi_container_observability(live_admin_url):
-    """Test 17: Audit GET /logs multi-container aggregated observability streams."""
+    """Test 16: Audit GET /logs multi-container aggregated observability streams."""
     async with httpx.AsyncClient() as http:
         res = await http.get(f"{live_admin_url}/api/showcases/gpu-inference/logs", headers=AUTH_HEADERS, timeout=15.0)
         assert res.status_code == 200
@@ -277,7 +287,7 @@ async def test_gpu_inference_multi_container_observability(live_admin_url):
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_dual_showcase_inter_routing(live_admin_url):
-    """Test 18: Audit X-Sandbox-Provider: vllm internal cluster DNS quote routing."""
+    """Test 17: Audit X-Sandbox-Provider: vllm internal cluster DNS quote routing."""
     async with httpx.AsyncClient() as http:
         res = await http.get(f"{live_admin_url}/api/showcases", headers=AUTH_HEADERS, timeout=10.0)
         active = [s["name"] for s in res.json() if s["status"] == "ACTIVE"]
@@ -295,3 +305,27 @@ async def test_dual_showcase_inter_routing(live_admin_url):
         )
         assert quote_res.status_code == 200
         assert "quote" in quote_res.json()
+
+# ==============================================================================
+# PART 4: TEARDOWN & DE-PROVISIONING (1 Test)
+# ==============================================================================
+
+@pytest.mark.gke
+@pytest.mark.anyio
+async def test_agent_sandbox_teardown_lock(live_admin_url):
+    """Test 18: Audit DELETE /teardown locking and namespace de-provisioning."""
+    async with httpx.AsyncClient() as http:
+        res = await http.delete(
+            f"{live_admin_url}/api/showcases/agent-sandbox/teardown",
+            headers=AUTH_HEADERS,
+            timeout=15.0
+        )
+        assert res.status_code == 200
+        assert res.json()["status"] == "TERMINATING"
+        
+        await k8s_client.init_k8s_connection()
+        async with client.ApiClient() as api:
+            core_v1 = client.CoreV1Api(api)
+            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
+            assert ns.status.phase in ("Terminating", "Active")
+
