@@ -191,13 +191,18 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                 )
                 
                 if os.path.exists(feature_infra_dir):
+                    vllm_ns = "gke-showcase-gpu-inference"
+                    if target_ns.startswith("gke-showcase-agent-sandbox-"):
+                        uuid_suffix = target_ns[len("gke-showcase-agent-sandbox-"):]
+                        vllm_ns = f"gke-showcase-gpu-inference-{uuid_suffix}"
+                    
                     vars_dict = {
                         "PROJECT_NAME": config.PROJECT_NAME,
                         "REGION": config.REGION,
                         "NAMESPACE": target_ns,
                         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE" if config.GOOGLE_GENAI_USE_VERTEXAI else "FALSE",
                         "GCS_MODEL_BUCKET": config.GCS_MODEL_BUCKET,
-                        "OPENAI_API_BASE": config.OPENAI_API_BASE,
+                        "OPENAI_API_BASE": f"http://vllm-service.{vllm_ns}.svc.cluster.local:8000/v1",
                         "ARTIFACT_REGISTRY_REPO": config.ARTIFACT_REGISTRY_REPO
                     }
                     
@@ -479,14 +484,12 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     headers = {
         "X-Sandbox-Id": claim_id,
         "X-Sandbox-Namespace": namespace,
+        "X-Sandbox-Provider": provider,
+        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
         "Content-Type": "application/json"
     }
     
     payload = {"message": message}
-    
-    if provider == "vllm":
-        vllm_endpoint = f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1"
-        pass
         
     try:
         response = await execute_http_with_retry("POST", url, headers=headers, json_payload=payload, timeout=45.0)
@@ -510,6 +513,7 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
         "X-Sandbox-Id": claim_id,
         "X-Sandbox-Namespace": namespace,
         "X-Sandbox-Provider": provider,
+        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
         "Content-Type": "application/json"
     }
     
