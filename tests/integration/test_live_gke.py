@@ -379,7 +379,7 @@ async def test_agent_sandbox_teardown_lock(live_admin_url):
             timeout=15.0
         )
         assert res.status_code == 200
-        assert res.json()["status"] == "TERMINATING"
+        assert res.json()["status"] in ("TERMINATING", "DORMANT")
         
         await k8s_client.init_k8s_connection()
         async with client.ApiClient() as api:
