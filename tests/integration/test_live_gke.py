@@ -370,19 +370,22 @@ async def test_dual_showcase_inter_routing(live_admin_url):
 
 @pytest.mark.gke
 @pytest.mark.anyio
-async def test_agent_sandbox_teardown_lock(live_admin_url):
-    """Test 18: Audit DELETE /teardown locking and namespace de-provisioning."""
+async def test_system_teardown_lock(live_admin_url):
+    """Test 18: Audit DELETE /teardown locking and namespace de-provisioning for both showcases."""
     async with httpx.AsyncClient() as http:
-        res = await http.delete(
-            f"{live_admin_url}/api/showcases/agent-sandbox/teardown",
-            headers=AUTH_HEADERS,
-            timeout=15.0
-        )
-        assert res.status_code == 200
-        assert res.json()["status"] in ("TERMINATING", "DORMANT")
+        res_sb = await http.delete(f"{live_admin_url}/api/showcases/agent-sandbox/teardown", headers=AUTH_HEADERS, timeout=15.0)
+        assert res_sb.status_code == 200
+        assert res_sb.json()["status"] in ("TERMINATING", "DORMANT")
+        
+        res_gpu = await http.delete(f"{live_admin_url}/api/showcases/gpu-inference/teardown", headers=AUTH_HEADERS, timeout=15.0)
+        assert res_gpu.status_code == 200
+        assert res_gpu.json()["status"] in ("TERMINATING", "DORMANT")
         
         await k8s_client.init_k8s_connection()
         async with client.ApiClient() as api:
             core_v1 = client.CoreV1Api(api)
-            ns = await core_v1.read_namespace(SANDBOX_NS)
-            assert ns.status.phase in ("Terminating", "Active")
+            ns_sb = await core_v1.read_namespace(SANDBOX_NS)
+            assert ns_sb.status.phase in ("Terminating", "Active")
+            
+            ns_gpu = await core_v1.read_namespace(GPU_NS)
+            assert ns_gpu.status.phase in ("Terminating", "Active")

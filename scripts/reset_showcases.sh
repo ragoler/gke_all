@@ -23,7 +23,7 @@ if kubectl get namespace gke-showcase-admin >/dev/null 2>&1; then
   kubectl delete namespace gke-showcase-gpu-inference --ignore-not-found --timeout=60s
   
   # Delete any custom namespaces tracked by Gateway API or Sandbox
-  for ns in $(kubectl get ns -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -E '^agent-|^gpu-|^showcase-' || true); do
+  for ns in $(kubectl get ns -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -E '^agent-|^gpu-|^showcase-|^gke-showcase-|^inference-|^my-test-' || true); do
     if [ "$ns" != "gke-showcase-admin" ]; then
       echo ">>> Deleting custom showcase namespace: $ns"
       kubectl delete namespace "$ns" --ignore-not-found --timeout=60s
