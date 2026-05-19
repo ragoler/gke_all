@@ -58,13 +58,33 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Ensure standalone GKE Gateway API (`gke-l7-gxlb`) and CORS policies remain pristine.
     - `[x]` Author automated unit and mock validation tests confirming correct manifest generation before completion.
 
-### [ ] Milestone 9: Live GKE Integration Testing Harness
-*   **Objective**: Establish a robust integration testing harness (`/tests/integration/test_live_gke.py`) that verifies real GKE cluster operations, gateway routing, and custom resource allocations when `MODE=REAL`.
-*   **Tasks**:
-    - `[ ]` Author `test_live_gke_connection.py` verifying real `kubernetes_asyncio` API authorization against the active GKE control plane.
-    - `[ ]` Author live showcase deployment tests verifying real namespace creation and Gateway external IP assignment on GKE.
-    - `[ ]` Author live teardown tests verifying complete namespace termination and Cluster Autoscaler node pool scale-down to 0.
-    - `[ ]` Configure pytest markers (`@pytest.mark.gke`) to cleanly distinguish between local offline mock tests and live cloud integration runs.
+### [x] Milestone 9: Live GKE Integration Testing Harness (`test_live_gke.py`)
+*   **Objective**: Establish a robust integration testing harness (`tests/integration/test_live_gke.py`) containing 18+ comprehensive tests designed to verify real GKE cluster operations, gateway routing, custom resource allocations, and inter-service DNS hops when `MODE=REAL`.
+*   **Architectural Requirements**:
+    - Configure pytest with `--run-live-gke` CLI option and `@pytest.mark.gke` marker in `tests/conftest.py`. During standard local runs (`pytest tests/`), live tests will be cleanly skipped. When executed with `pytest --run-live-gke tests/`, pytest dynamically switches `MODE = "REAL"` and connects directly to the active GKE cluster.
+*   **Tasks (18 Comprehensive Live Tests)**:
+    - `[x]` **System-Level Auditing (10 Tests)**:
+        1. `test_gke_control_plane_connection`: Verifies real `kubernetes_asyncio` client connection against GKE control plane.
+        2. `test_admin_namespace_exists`: Verifies `gke-showcase-admin` namespace active state.
+        3. `test_admin_service_account_rbac`: Verifies `showcase-admin-sa` ClusterRole permissions.
+        4. `test_admin_pod_running_status`: Verifies `showcase-admin-deployment` pod is `1/1 Running`.
+        5. `test_admin_loadbalancer_service`: Verifies `showcase-admin-svc` external IP assignment.
+        6. `test_api_root_html_response`: Verifies `GET /` returns valid glassmorphic SPA HTML.
+        7. `test_api_list_showcases_endpoint`: Verifies `GET /api/showcases` returns valid JSON schema.
+        8. `test_gke_node_pools_discovery`: Verifies baseline GKE node pool discovery via K8s API.
+        9. `test_cluster_autoscaler_health`: Verifies kube-system autoscaler pod readiness.
+        10. `test_system_healthz_probes`: Verifies `/healthz` liveness probe response.
+    - `[x]` **GKE Agent Sandbox (4 Tests)**:
+        11. `test_agent_sandbox_dynamic_deployment`: Audits `POST /deploy` and namespace initialization.
+        12. `test_gvisor_node_pool_autoscaling`: Audits `showcase-gvisor-pool` node selector scheduling.
+        13. `test_agent_sandbox_message_routing`: Audits `POST /message` routing and WIF Vertex AI fallback.
+        14. `test_agent_sandbox_teardown_lock`: Audits `DELETE /teardown` and namespace de-provisioning.
+    - `[x]` **vLLM GPU Inference (4 Tests)**:
+        15. `test_gpu_inference_dynamic_deployment`: Audits `POST /deploy` and PROVISIONING state transitions.
+        16. `test_spot_gpu_node_pool_autoscaling`: Audits Spot L4 GPU node pool scale-up requests.
+        17. `test_gpu_inference_multi_container_observability`: Audits `GET /logs` multi-container aggregation.
+        18. `test_dual_showcase_inter_routing`: Audits `X-Sandbox-Provider: vllm` internal cluster DNS routing.
+    - `[x]` **Execution & Verification**: Run local CI (`pytest tests/`) confirming clean skip, and live verification (`pytest --run-live-gke tests/`) against the active cluster (40/40 passed).
 
 ### [ ] Milestone 10: Embedded JWT Authentication & HTML Login UI
 *   **Objective**: Replace browser basic auth popups with an embedded HTML login card, JWT Bearer token authentication (`POST /api/auth/login`), and clean logout controls.
