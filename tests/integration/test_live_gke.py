@@ -200,7 +200,16 @@ async def test_agent_sandbox_dynamic_deployment(live_admin_url):
         
         async with client.ApiClient() as api:
             core_v1 = client.CoreV1Api(api)
-            ns = await core_v1.read_namespace(SANDBOX_NS)
+            ns = None
+            for _ in range(30):
+                try:
+                    ns = await core_v1.read_namespace(SANDBOX_NS)
+                    if ns.status.phase == "Active":
+                        break
+                except Exception:
+                    pass
+                await asyncio.sleep(2.0)
+            assert ns is not None
             assert ns.status.phase == "Active"
 
 @pytest.mark.gke
@@ -226,6 +235,18 @@ async def test_gvisor_node_pool_autoscaling():
 @pytest.mark.anyio
 async def test_agent_sandbox_message_routing(live_admin_url):
     """Test 13: Audit POST /message routing and WIF Vertex AI fallback."""
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core = client.CoreV1Api(api)
+        for _ in range(45):
+            try:
+                svc = await core.read_namespaced_service("sandbox-router-svc", SANDBOX_NS)
+                if svc.status.load_balancer.ingress:
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(2.0)
+
     async with httpx.AsyncClient() as http:
         claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
         assert claim_res.status_code == 200
@@ -235,7 +256,7 @@ async def test_agent_sandbox_message_routing(live_admin_url):
             f"{live_admin_url}/api/sandboxes/{claim_id}/message",
             json={"message": "Live integration verification prompt", "provider": "vertex"},
             headers=AUTH_HEADERS,
-            timeout=20.0
+            timeout=60.0
         )
         assert msg_res.status_code == 200
         assert "Live integration verification prompt" in msg_res.json()["reply"]
@@ -307,9 +328,27 @@ async def test_gpu_inference_multi_container_observability(live_admin_url):
 @pytest.mark.anyio
 async def test_dual_showcase_inter_routing(live_admin_url):
     """Test 17: Audit X-Sandbox-Provider: vllm internal cluster DNS quote routing."""
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core = client.CoreV1Api(api)
+        for _ in range(45):
+            try:
+                svc = await core.read_namespaced_service("inference-playroom-svc", GPU_NS)
+                if svc.status.load_balancer.ingress:
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(2.0)
+
     async with httpx.AsyncClient() as http:
-        res = await http.get(f"{live_admin_url}/api/showcases", headers=AUTH_HEADERS, timeout=10.0)
-        active = [s["name"] for s in res.json() if s["status"] == "ACTIVE"]
+        active = []
+        for _ in range(30):
+            res = await http.get(f"{live_admin_url}/api/showcases", headers=AUTH_HEADERS, timeout=10.0)
+            active = [s["name"] for s in res.json() if s["status"] == "ACTIVE"]
+            if "agent-sandbox" in active and "gpu-inference" in active:
+                break
+            await asyncio.sleep(3.0)
+
         if "agent-sandbox" not in active or "gpu-inference" not in active:
             pytest.skip("Both showcases must be fully ACTIVE to test inter-service DNS quote routing.")
             
@@ -320,7 +359,7 @@ async def test_dual_showcase_inter_routing(live_admin_url):
             f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
             json={"provider": "vllm"},
             headers=AUTH_HEADERS,
-            timeout=30.0
+            timeout=60.0
         )
         assert quote_res.status_code == 200
         assert "quote" in quote_res.json()
