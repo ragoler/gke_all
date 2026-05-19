@@ -210,9 +210,15 @@ async def test_gvisor_node_pool_autoscaling():
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
-        pods = await core_v1.list_namespaced_pod(SANDBOX_NS, label_selector="app=demo-agent")
-        assert len(pods.items) > 0
-        for pod in pods.items:
+        pods = []
+        for _ in range(30):
+            res = await core_v1.list_namespaced_pod(SANDBOX_NS, label_selector="app=demo-agent")
+            if res.items:
+                pods = res.items
+                break
+            await asyncio.sleep(2.0)
+        assert len(pods) > 0
+        for pod in pods:
             assert pod.spec.runtime_class_name == "gvisor"
             assert pod.spec.node_selector.get("sandbox.gke.io/runtime") == "gvisor"
 
@@ -275,9 +281,15 @@ async def test_spot_gpu_node_pool_autoscaling():
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
-        pods = await core_v1.list_namespaced_pod(GPU_NS, label_selector="app=gpu-inference")
-        assert len(pods.items) > 0
-        pod = pods.items[0]
+        pods = []
+        for _ in range(30):
+            res = await core_v1.list_namespaced_pod(GPU_NS, label_selector="app=gpu-inference")
+            if res.items:
+                pods = res.items
+                break
+            await asyncio.sleep(2.0)
+        assert len(pods) > 0
+        pod = pods[0]
         assert pod.spec.node_selector.get("cloud.google.com/gke-accelerator") == "nvidia-l4"
         assert pod.spec.node_selector.get("cloud.google.com/gke-spot") == "true"
 
