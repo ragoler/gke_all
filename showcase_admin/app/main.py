@@ -7,7 +7,9 @@ import os
 import uuid
 import httpx
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
+import secrets
 
 from showcase_admin.app import config, database, auth, k8s_client
 
@@ -36,12 +38,13 @@ frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fronten
 os.makedirs(frontend_dir, exist_ok=True)
 
 # Serve Frontend SPA UI
-@app.get("/", response_class=HTMLResponse, dependencies=api_dependencies)
+@app.get("/", response_class=HTMLResponse)
 async def read_root():
     index_path = os.path.join(frontend_dir, 'index.html')
     if os.path.exists(index_path):
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="index.html file not found.")
+
 
 # Mount static assets
 app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
@@ -86,6 +89,32 @@ def get_feature_namespace(db: Session, feature_name: str) -> str:
 # ----------------------------------------------------------------------
 # CORE BACKEND ADMINISTRATIVE APIs
 # ----------------------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/auth/login")
+async def login(credentials: LoginRequest):
+    correct_username = secrets.compare_digest(credentials.username, config.ADMIN_USERNAME)
+    correct_password = secrets.compare_digest(credentials.password, config.ADMIN_PASSWORD)
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+        
+    expires_in = 86400
+    token = auth.create_access_token(
+        data={"sub": credentials.username},
+        expires_delta=timedelta(seconds=expires_in)
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": expires_in
+    }
+
 @app.get("/api/showcases", dependencies=api_dependencies)
 async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
     db_showcases = db.query(database.ShowcaseModel).all()

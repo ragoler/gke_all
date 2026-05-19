@@ -33,9 +33,14 @@ def test_api_unauthorized_access(client):
 def test_api_authorized_get_showcases(client):
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True), \
          mock.patch("showcase_admin.app.config.ADMIN_USERNAME", "admin"), \
-         mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"):
+         mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"), \
+         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "secret-key"):
         
-        response = client.get("/api/showcases", auth=("admin", "pass"))
+        login_resp = client.post("/api/auth/login", json={"username": "admin", "password": "pass"})
+        assert login_resp.status_code == 200
+        token = login_resp.json()["access_token"]
+
+        response = client.get("/api/showcases", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -45,12 +50,17 @@ def test_api_authorized_get_showcases(client):
 def test_api_deploy_feature(client):
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True), \
          mock.patch("showcase_admin.app.config.ADMIN_USERNAME", "admin"), \
-         mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"):
+         mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"), \
+         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "secret-key"):
         
+        login_resp = client.post("/api/auth/login", json={"username": "admin", "password": "pass"})
+        assert login_resp.status_code == 200
+        token = login_resp.json()["access_token"]
+
         response = client.post(
             "/api/showcases/agent-sandbox/deploy",
             json={"namespace": "my-test-sandbox"},
-            auth=("admin", "pass")
+            headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -58,6 +68,7 @@ def test_api_deploy_feature(client):
         # In synchronous mock deployer inside client execution, status updates immediately to ACTIVE
         assert data["status"] in ["ACTIVE", "DEPLOYING"]
         assert data["namespace"] == "my-test-sandbox"
+
 
 def test_api_teardown_feature(client):
     # Override dependency to bypass auth header check entirely

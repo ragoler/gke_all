@@ -18,14 +18,88 @@ document.addEventListener("DOMContentLoaded", () => {
     const consoleShowcaseTitle = document.getElementById("console-showcase-title");
     const consoleNamespaceMeta = document.getElementById("console-namespace-meta");
     const refreshLogsBtn = document.getElementById("refresh-logs-btn");
+    
+    const loginModal = document.getElementById("login-modal");
+    const loginForm = document.getElementById("login-form");
+    const loginErrorMessage = document.getElementById("login-error-message");
+    const btnLogout = document.getElementById("btn-logout");
+
+    // Fetch wrapper attaching JWT authorization header
+    async function fetchWithAuth(url, options = {}) {
+        const token = localStorage.getItem("admin_jwt");
+        const headers = { ...(options.headers || {}) };
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+        const newOptions = { ...options, headers };
+        const response = await fetch(url, newOptions);
+        
+        if (response.status === 401) {
+            if (loginModal) loginModal.style.display = "flex";
+            if (btnLogout) btnLogout.style.display = "none";
+        } else {
+            if (token && btnLogout && loginModal && loginModal.style.display !== "flex") {
+                btnLogout.style.display = "block";
+            }
+        }
+        return response;
+    }
+
+    if (loginForm) {
+        loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById("login-username");
+            const passwordInput = document.getElementById("login-password");
+            
+            try {
+                const res = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: usernameInput.value,
+                        password: passwordInput.value
+                    })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem("admin_jwt", data.access_token);
+                    if (loginModal) loginModal.style.display = "none";
+                    if (loginErrorMessage) loginErrorMessage.style.display = "none";
+                    if (btnLogout) btnLogout.style.display = "block";
+                    passwordInput.value = "";
+                    fetchShowcases();
+                } else {
+                    const errData = await res.json();
+                    if (loginErrorMessage) {
+                        loginErrorMessage.textContent = errData.detail || "Invalid credentials";
+                        loginErrorMessage.style.display = "block";
+                    }
+                }
+            } catch (err) {
+                if (loginErrorMessage) {
+                    loginErrorMessage.textContent = "Network error during login";
+                    loginErrorMessage.style.display = "block";
+                }
+            }
+        });
+    }
+
+    if (btnLogout) {
+        btnLogout.addEventListener("click", () => {
+            localStorage.removeItem("admin_jwt");
+            btnLogout.style.display = "none";
+            if (loginModal) loginModal.style.display = "flex";
+            featuresGrid.innerHTML = `<div class="card-skeleton">🔒 Authentication required. Please enter credentials.</div>`;
+        });
+    }
 
     // Fetch and Render Showcases from Backend REST API
     async function fetchShowcases() {
         try {
-            const response = await fetch("/api/showcases");
+            const response = await fetchWithAuth("/api/showcases");
             if (response.status === 401) {
-                // Native basic auth prompt will be requested automatically by browser
-                featuresGrid.innerHTML = `<div class="card-skeleton">🔒 Authentication required. Please refresh and enter credentials.</div>`;
+                featuresGrid.innerHTML = `<div class="card-skeleton">🔒 Authentication required. Please enter credentials.</div>`;
                 return;
             }
             if (!response.ok) throw new Error("Failed to fetch showcase list.");
@@ -128,8 +202,6 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Detect mode from first response cache
         if (showcases.length > 0) {
-            // Backend can dynamically pass mode, let's fetch from configuration or use mock mode indicator
-            // We will extract a default fallback
             clusterModeMetric.textContent = showcasesCache[0].name ? "HYBRID STATE" : "MOCK";
         }
     }
@@ -142,21 +214,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!name) return;
 
         if (target.classList.contains("btn-deploy") && !target.classList.contains("btn-teardown")) {
-            // Deployment sequence
             const nsInput = document.getElementById(`ns-${name}`);
-            const namespaceValue = nsInput ? nsInput.value.strip ? nsInput.value.strip() : nsInput.value.trim() : "";
+            const namespaceValue = nsInput ? (nsInput.value.strip ? nsInput.value.strip() : nsInput.value.trim()) : "";
             
             target.textContent = "Initiating...";
             target.disabled = true;
 
             try {
-                const response = await fetch(`/api/showcases/${name}/deploy`, {
+                const response = await fetchWithAuth(`/api/showcases/${name}/deploy`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ namespace: namespaceValue })
                 });
                 
-                if (!response.ok) throw new Error("Failed to initiate deployment.");
+                if (!response.ok && response.status !== 401) throw new Error("Failed to initiate deployment.");
                 
                 await fetchShowcases();
             } catch (err) {
@@ -166,17 +237,15 @@ document.addEventListener("DOMContentLoaded", () => {
         } 
         
         else if (target.classList.contains("btn-teardown")) {
-            // Teardown sequence
-
             target.textContent = "Terminating...";
             target.disabled = true;
 
             try {
-                const response = await fetch(`/api/showcases/${name}/teardown`, {
+                const response = await fetchWithAuth(`/api/showcases/${name}/teardown`, {
                     method: "DELETE"
                 });
                 
-                if (!response.ok) throw new Error("Failed to tear down showcase.");
+                if (!response.ok && response.status !== 401) throw new Error("Failed to tear down showcase.");
                 
                 await fetchShowcases();
             } catch (err) {
@@ -186,7 +255,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } 
         
         else if (target.classList.contains("btn-logs")) {
-            // Open console logs modal
             const matchedItem = showcasesCache.find(i => i.name === name);
             if (!matchedItem) return;
 
@@ -194,7 +262,6 @@ document.addEventListener("DOMContentLoaded", () => {
             consoleNamespaceMeta.textContent = `Namespace: ${matchedItem.namespace || 'N/A'}`;
             consoleLogStream.textContent = "[SYSTEM] Retrieving live logs...";
             
-            // Set current active target on refresh button for quick pulls
             refreshLogsBtn.setAttribute("data-name", name);
             
             consoleModal.classList.add("open");
@@ -205,20 +272,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Retrieve dynamic container logs from API
     async function loadLogs(name) {
         try {
-            const response = await fetch(`/api/showcases/${name}/logs`);
+            const response = await fetchWithAuth(`/api/showcases/${name}/logs`);
+            if (response.status === 401) return;
             if (!response.ok) throw new Error("Failed to load diagnostic logs.");
             
             const data = await response.json();
             consoleLogStream.textContent = data.logs;
-            
-            // Autoscroll to bottom
             consoleLogStream.scrollTop = consoleLogStream.scrollHeight;
         } catch (err) {
             consoleLogStream.textContent = `[ERROR] Log retrieval failed: ${err.message}`;
         }
     }
 
-    // Refresh logs action
     refreshLogsBtn.addEventListener("click", async () => {
         const name = refreshLogsBtn.getAttribute("data-name");
         if (name) {
@@ -227,12 +292,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Close logs modal
     closeConsoleBtn.addEventListener("click", () => {
         consoleModal.classList.remove("open");
     });
 
-    // Auto refresh/polling loop to sync DEPLOYING states
     setInterval(() => {
         const needsSync = showcasesCache.some(item => item.status === "DEPLOYING" || item.status === "TERMINATING");
         if (needsSync) {
@@ -240,7 +303,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }, 2000);
 
-    // Active 1s interval updating elapsed timer values in real-time
     setInterval(() => {
         const timers = document.querySelectorAll(".elapsed-timer");
         timers.forEach(t => {
@@ -254,3 +316,4 @@ document.addEventListener("DOMContentLoaded", () => {
     // Bootstrap Setup
     fetchShowcases();
 });
+

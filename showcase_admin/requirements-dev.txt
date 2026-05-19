@@ -5,3 +5,4 @@ httpx>=0.24.0
 sqlalchemy>=2.0.0
 kubernetes_asyncio>=26.0.0
 python-dotenv>=1.0.0
+pyjwt>=2.8.0

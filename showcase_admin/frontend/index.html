@@ -19,9 +19,12 @@
                 <span class="brand-accent">GKE</span>
                 <span class="brand-title">Showcase Hub</span>
             </div>
-            <div class="cluster-status">
-                <span class="pulse-indicator active"></span>
-                <span class="status-text">GKE Cluster Connection: Secure</span>
+            <div class="header-actions">
+                <div class="cluster-status">
+                    <span class="pulse-indicator active"></span>
+                    <span class="status-text">GKE Cluster Connection: Secure</span>
+                </div>
+                <button class="btn-logout" id="btn-logout" style="display: none;">Logout</button>
             </div>
         </header>
 
@@ -65,7 +68,29 @@
         </div>
     </div>
 
+    <!-- Login Modal Overlay -->
+    <div class="modal-overlay" id="login-modal" style="display: none;">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="login-brand-accent">GKE Showcase</span>
+                <h2 class="login-title">Admin Authentication Required</h2>
+            </div>
+            <form class="login-form" id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" required placeholder="admin" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••••••" autocomplete="current-password">
+                </div>
+                <div class="login-error" id="login-error-message" style="display: none;"></div>
+                <button type="submit" class="btn-login">Authenticate</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Dynamic Frontend Javascript -->
-    <script src="/static/app.js?v=20260518"></script>
+    <script src="/static/app.js?v=20260519"></script>
 </body>
 </html>
