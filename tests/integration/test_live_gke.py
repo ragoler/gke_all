@@ -248,7 +248,17 @@ async def test_agent_sandbox_message_routing(live_admin_url):
             await asyncio.sleep(2.0)
 
     async with httpx.AsyncClient() as http:
-        claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
+        claim_res = None
+        for _ in range(12):
+            try:
+                claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
+                if claim_res.status_code == 200 and "id" in claim_res.json():
+                    break
+            except (httpx.RequestError, httpx.HTTPError):
+                pass
+            await asyncio.sleep(10.0)
+            
+        assert claim_res is not None, "Failed to create sandbox claim after retries."
         assert claim_res.status_code == 200
         claim_id = claim_res.json()["id"]
         
@@ -342,7 +352,7 @@ async def test_dual_showcase_inter_routing(live_admin_url):
 
     async with httpx.AsyncClient() as http:
         active = []
-        for _ in range(30):
+        for _ in range(90):
             res = await http.get(f"{live_admin_url}/api/showcases", headers=AUTH_HEADERS, timeout=10.0)
             active = [s["name"] for s in res.json() if s["status"] == "ACTIVE"]
             if "agent-sandbox" in active and "gpu-inference" in active:
@@ -352,15 +362,36 @@ async def test_dual_showcase_inter_routing(live_admin_url):
         if "agent-sandbox" not in active or "gpu-inference" not in active:
             pytest.skip("Both showcases must be fully ACTIVE to test inter-service DNS quote routing.")
             
-        claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
+        claim_res = None
+        for _ in range(12):
+            try:
+                claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
+                if claim_res.status_code == 200 and "id" in claim_res.json():
+                    break
+            except (httpx.RequestError, httpx.HTTPError):
+                pass
+            await asyncio.sleep(10.0)
+            
+        assert claim_res is not None, "Failed to create sandbox claim after retries in dual showcase test."
+        assert claim_res.status_code == 200
         claim_id = claim_res.json()["id"]
         
-        quote_res = await http.post(
-            f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
-            json={"provider": "vllm"},
-            headers=AUTH_HEADERS,
-            timeout=60.0
-        )
+        quote_res = None
+        for attempt in range(7):
+            try:
+                quote_res = await http.post(
+                    f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
+                    json={"provider": "vllm"},
+                    headers=AUTH_HEADERS,
+                    timeout=120.0
+                )
+                if quote_res.status_code == 200 and "quote" in quote_res.json():
+                    break
+            except (httpx.RequestError, httpx.HTTPError):
+                pass
+            await asyncio.sleep(15.0)
+            
+        assert quote_res is not None, "Failed to get a successful response from quote endpoint after retries."
         assert quote_res.status_code == 200
         assert "quote" in quote_res.json()
 

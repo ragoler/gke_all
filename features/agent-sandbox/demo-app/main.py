@@ -45,21 +45,21 @@ async def reply_message(payload: MessagePayload, x_sandbox_id: str = Header(defa
     return {"reply": f"[{x_sandbox_id}] {payload.message}"}
 
 @app.get("/quote")
-async def get_quote(x_sandbox_provider: str = Header(default="vertex")):
-    logger.info(f"Received request for quote (provider: {x_sandbox_provider})")
+async def get_quote(x_sandbox_provider: str = Header(default="vertex"), x_sandbox_vllm_endpoint: str = Header(default=None)):
+    logger.info(f"Received request for quote (provider: {x_sandbox_provider}, vllm_endpoint: {x_sandbox_vllm_endpoint})")
     start_time = time.time()
     
     try:
-        if OPENAI_API_BASE and x_sandbox_provider.lower() == "vllm":
-            # Option 2: Query local self-hosted vLLM service via GKE cluster internal DNS
-            logger.info(f"Calling self-hosted vLLM model at {OPENAI_API_BASE}")
+        vllm_base = x_sandbox_vllm_endpoint.strip() if x_sandbox_vllm_endpoint else OPENAI_API_BASE
+        if vllm_base and x_sandbox_provider.lower() == "vllm":
+            logger.info(f"Calling self-hosted vLLM model at {vllm_base}")
             async with httpx.AsyncClient() as http_client:
                 payload = {
                     "model": MODEL_NAME,
                     "messages": [{"role": "user", "content": "Provide a short, inspiring quote of the day."}],
                     "max_tokens": 100
                 }
-                url = f"{OPENAI_API_BASE.rstrip('/')}/chat/completions"
+                url = f"{vllm_base.rstrip('/')}/chat/completions"
                 response = await http_client.post(url, json=payload, timeout=30.0)
                 if response.status_code != 200:
                     raise Exception(f"vLLM server returned status {response.status_code}: {response.text}")

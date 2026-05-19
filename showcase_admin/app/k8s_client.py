@@ -235,17 +235,19 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                             pass
                     await asyncio.sleep(5)
                             
-                if is_ready:
-                    showcase.status = "ACTIVE"
-                    showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
-                else:
-                    showcase.status = "PROVISIONING"
-                db.commit()
+                showcase = db.query(ShowcaseModel).filter_by(name=name).first()
+                if showcase and showcase.namespace == target_ns:
+                    if is_ready:
+                        showcase.status = "ACTIVE"
+                        showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                    else:
+                        showcase.status = "PROVISIONING"
+                    db.commit()
     except Exception as e:
         # If error occurs, commit status as ERROR
         try:
             showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-            if showcase:
+            if showcase and showcase.namespace == target_ns:
                 showcase.status = "ERROR"
                 db.commit()
         except Exception:
@@ -291,7 +293,7 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
                         raise e
                         
         showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-        if showcase:
+        if showcase and showcase.namespace == namespace:
             showcase.status = "DORMANT"
             showcase.reach_out_url = None
             showcase.namespace = None
@@ -299,7 +301,7 @@ async def teardown_showcase(name: str, namespace: str, db_session=None, SessionL
     except Exception as e:
         try:
             showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-            if showcase:
+            if showcase and showcase.namespace == namespace:
                 showcase.status = "ERROR"
                 db.commit()
         except Exception:
@@ -559,7 +561,7 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                 db = database.SessionLocal()
                 try:
                     showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-                    if showcase and showcase.status in ("DEPLOYING", "PROVISIONING"):
+                    if showcase and showcase.status in ("DEPLOYING", "PROVISIONING") and showcase.namespace == namespace:
                         if ready == desired and ready > 0:
                             showcase.status = "ACTIVE"
                             showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
