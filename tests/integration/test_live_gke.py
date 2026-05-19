@@ -42,7 +42,19 @@ def live_admin_url():
                     pytest.fail("showcase-admin-svc has no external LoadBalancer IP assigned on GKE.")
                 return svc.status.load_balancer.ingress[0].ip
         ip = loop.run_until_complete(_get_ip())
-        return f"http://{ip}"
+        url = f"http://{ip}"
+        
+        # Perform JWT authentication and dynamically update global AUTH_HEADERS
+        async def _login():
+            async with httpx.AsyncClient() as http:
+                res = await http.post(f"{url}/api/auth/login", json={"username": config.ADMIN_USERNAME, "password": config.ADMIN_PASSWORD}, timeout=10.0)
+                if res.status_code == 200:
+                    return res.json()["access_token"]
+                raise Exception(f"HTTP {res.status_code}: {res.text}")
+                
+        token = loop.run_until_complete(_login())
+        AUTH_HEADERS["Authorization"] = f"Bearer {token}"
+        return url
     except Exception as e:
         pytest.fail(f"Failed to discover showcase-admin-svc IP: {e}")
     finally:
