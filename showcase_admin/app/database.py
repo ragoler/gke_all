@@ -15,12 +15,12 @@ Base = declarative_base()
 # Detect if running inside GKE / Docker Container
 is_container = os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount") or "KUBERNETES_SERVICE_HOST" in os.environ
 
-if is_container:
+if is_container and os.access("/data", os.W_OK):
     # GKE PVC Mount path (always writable inside GKE pod container)
     os.makedirs("/data", exist_ok=True)
     DATABASE_URL = "sqlite:////data/showcase.db"
 else:
-    # Local development (macOS / Linux)
+    # Local development (macOS / Linux or restricted test sandbox)
     db_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data'))
     os.makedirs(db_dir, exist_ok=True)
     DATABASE_URL = f"sqlite:///{os.path.join(db_dir, 'showcase.db')}"

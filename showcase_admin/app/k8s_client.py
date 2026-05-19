@@ -14,14 +14,12 @@ _k8s_initialized = False
 mock_claims = {} # Local mock in-memory cache for offline mock-mode claims
 
 async def init_k8s_connection():
-    global _k8s_initialized
-    if _k8s_initialized or config.MODE == "MOCK":
+    if config.MODE == "MOCK":
         return
     try:
         k8s_config.load_incluster_config()
     except Exception:
         await k8s_config.load_kube_config()
-    _k8s_initialized = True
 
 def expand_template(content: str, vars_dict: dict) -> str:
     pattern = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
