@@ -12,14 +12,21 @@ AUTH_HEADERS = {
     "Content-Type": "application/json"
 }
 
+# Unique test namespaces to guarantee absolute isolation and prevent K8s termination lock conflicts
+TEST_UUID = str(uuid.uuid4())[:8]
+SANDBOX_NS = f"gke-showcase-agent-sandbox-{TEST_UUID}"
+GPU_NS = f"gke-showcase-gpu-inference-{TEST_UUID}"
+
 @pytest.fixture(scope="module", autouse=True)
 def enforce_real_mode():
     os.environ["MODE"] = "REAL"
     config.MODE = "REAL"
     yield
+
 @pytest.fixture(scope="module", autouse=True)
 def anyio_backend():
     return "asyncio"
+
 @pytest.fixture(scope="module")
 def live_admin_url():
     loop = asyncio.new_event_loop()
@@ -169,12 +176,12 @@ async def test_agent_sandbox_dynamic_deployment(live_admin_url):
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
         try:
-            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
+            ns = await core_v1.read_namespace(SANDBOX_NS)
             if ns.status.phase == "Terminating":
                 for _ in range(30):
                     await asyncio.sleep(2.0)
                     try:
-                        await core_v1.read_namespace("gke-showcase-agent-sandbox")
+                        await core_v1.read_namespace(SANDBOX_NS)
                     except Exception:
                         break
         except Exception:
@@ -183,7 +190,7 @@ async def test_agent_sandbox_dynamic_deployment(live_admin_url):
     async with httpx.AsyncClient() as http:
         res = await http.post(
             f"{live_admin_url}/api/showcases/agent-sandbox/deploy", 
-            json={"namespace": "gke-showcase-agent-sandbox"},
+            json={"namespace": SANDBOX_NS},
             headers=AUTH_HEADERS,
             timeout=25.0
         )
@@ -193,7 +200,7 @@ async def test_agent_sandbox_dynamic_deployment(live_admin_url):
         
         async with client.ApiClient() as api:
             core_v1 = client.CoreV1Api(api)
-            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
+            ns = await core_v1.read_namespace(SANDBOX_NS)
             assert ns.status.phase == "Active"
 
 @pytest.mark.gke
@@ -203,7 +210,7 @@ async def test_gvisor_node_pool_autoscaling():
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
-        pods = await core_v1.list_namespaced_pod("gke-showcase-agent-sandbox", label_selector="app=demo-agent")
+        pods = await core_v1.list_namespaced_pod(SANDBOX_NS, label_selector="app=demo-agent")
         assert len(pods.items) > 0
         for pod in pods.items:
             assert pod.spec.runtime_class_name == "gvisor"
@@ -239,12 +246,12 @@ async def test_gpu_inference_dynamic_deployment(live_admin_url):
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
         try:
-            ns = await core_v1.read_namespace("gke-showcase-gpu-inference")
+            ns = await core_v1.read_namespace(GPU_NS)
             if ns.status.phase == "Terminating":
                 for _ in range(30):
                     await asyncio.sleep(2.0)
                     try:
-                        await core_v1.read_namespace("gke-showcase-gpu-inference")
+                        await core_v1.read_namespace(GPU_NS)
                     except Exception:
                         break
         except Exception:
@@ -253,7 +260,7 @@ async def test_gpu_inference_dynamic_deployment(live_admin_url):
     async with httpx.AsyncClient() as http:
         res = await http.post(
             f"{live_admin_url}/api/showcases/gpu-inference/deploy",
-            json={"namespace": "gke-showcase-gpu-inference"},
+            json={"namespace": GPU_NS},
             headers=AUTH_HEADERS,
             timeout=25.0
         )
@@ -268,7 +275,7 @@ async def test_spot_gpu_node_pool_autoscaling():
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
-        pods = await core_v1.list_namespaced_pod("gke-showcase-gpu-inference", label_selector="app=gpu-inference")
+        pods = await core_v1.list_namespaced_pod(GPU_NS, label_selector="app=gpu-inference")
         assert len(pods.items) > 0
         pod = pods.items[0]
         assert pod.spec.node_selector.get("cloud.google.com/gke-accelerator") == "nvidia-l4"
@@ -326,6 +333,5 @@ async def test_agent_sandbox_teardown_lock(live_admin_url):
         await k8s_client.init_k8s_connection()
         async with client.ApiClient() as api:
             core_v1 = client.CoreV1Api(api)
-            ns = await core_v1.read_namespace("gke-showcase-agent-sandbox")
+            ns = await core_v1.read_namespace(SANDBOX_NS)
             assert ns.status.phase in ("Terminating", "Active")
-
