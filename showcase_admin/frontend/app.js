@@ -35,10 +35,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const response = await fetch(url, newOptions);
         
         if (response.status === 401) {
-            if (loginModal) loginModal.style.display = "flex";
+            if (loginModal) {
+                loginModal.style.display = "flex";
+                loginModal.classList.add("open");
+            }
             if (btnLogout) btnLogout.style.display = "none";
         } else {
-            if (token && btnLogout && loginModal && loginModal.style.display !== "flex") {
+            if (token && btnLogout && loginModal && !loginModal.classList.contains("open")) {
                 btnLogout.style.display = "block";
             }
         }
@@ -64,7 +67,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (res.ok) {
                     const data = await res.json();
                     localStorage.setItem("admin_jwt", data.access_token);
-                    if (loginModal) loginModal.style.display = "none";
+                    if (loginModal) {
+                        loginModal.style.display = "none";
+                        loginModal.classList.remove("open");
+                    }
                     if (loginErrorMessage) loginErrorMessage.style.display = "none";
                     if (btnLogout) btnLogout.style.display = "block";
                     passwordInput.value = "";
@@ -89,7 +95,10 @@ document.addEventListener("DOMContentLoaded", () => {
         btnLogout.addEventListener("click", () => {
             localStorage.removeItem("admin_jwt");
             btnLogout.style.display = "none";
-            if (loginModal) loginModal.style.display = "flex";
+            if (loginModal) {
+                loginModal.style.display = "flex";
+                loginModal.classList.add("open");
+            }
             featuresGrid.innerHTML = `<div class="card-skeleton">🔒 Authentication required. Please enter credentials.</div>`;
         });
     }
