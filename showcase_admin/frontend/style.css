@@ -273,6 +273,69 @@ body {
     border-color: var(--cyan-neon);
 }
 
+/* Dynamic Provider Select & Custom Endpoint Group */
+.provider-select {
+    background: var(--bg-secondary);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    color: var(--cyan-neon);
+    font-family: var(--font-header);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.1), inset 0 0 10px rgba(0, 229, 255, 0.05);
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300e5ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+}
+
+.provider-select:hover {
+    border-color: var(--cyan-neon);
+    box-shadow: 0 0 20px var(--cyan-glow), inset 0 0 15px rgba(0, 229, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.provider-select:focus {
+    border-color: var(--emerald-neon);
+    color: var(--emerald-neon);
+    box-shadow: 0 0 25px var(--emerald-glow);
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+.provider-select option {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 500;
+    padding: 0.5rem;
+}
+
+.endpoint-group {
+    animation: cosmic-reveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    position: relative;
+}
+
+.endpoint-group::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--violet-neon), var(--cyan-neon));
+    border-radius: 2px;
+    box-shadow: 0 0 10px var(--violet-glow);
+}
+
+@keyframes cosmic-reveal {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .btn-deploy {
     display: block;
     width: 100%;

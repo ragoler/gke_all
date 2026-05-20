@@ -160,6 +160,8 @@ async def deploy_feature(
         
     namespace_override = body.get("namespace", "").strip()
     target_ns = namespace_override if namespace_override else f"gke-showcase-{name}"
+    llm_provider = body.get("llm_provider", "vertex")
+    llm_service_endpoint = body.get("llm_service_endpoint", "")
     
     # Immediately commit DEPLOYING status and release the request thread
     showcase = db.query(database.ShowcaseModel).filter_by(name=name).first()
@@ -177,6 +179,8 @@ async def deploy_feature(
         k8s_client.deploy_showcase,
         name=name,
         namespace=target_ns,
+        llm_provider=llm_provider,
+        llm_service_endpoint=llm_service_endpoint,
         SessionLocal=database.SessionLocal
     )
     

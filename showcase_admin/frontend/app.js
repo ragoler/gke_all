@@ -145,12 +145,30 @@ document.addEventListener("DOMContentLoaded", () => {
             let statusControlHtml = "";
             
             if (item.status === "DORMANT") {
+                let extraConfig = "";
+                if (item.name === "agent-sandbox") {
+                    extraConfig = `
+                        <div class="input-group" style="margin-top: 0.5rem;">
+                            <label for="provider-${item.name}">LLM Backend Provider</label>
+                            <select id="provider-${item.name}" class="provider-select">
+                                <option value="vertex">Vertex AI</option>
+                                <option value="vllm">Deployed vLLM Gateway</option>
+                                <option value="custom">Custom Endpoint</option>
+                            </select>
+                        </div>
+                        <div class="input-group endpoint-group" id="endpoint-group-${item.name}" style="display: none; margin-top: 0.5rem;">
+                            <label for="endpoint-${item.name}">Custom LLM URL</label>
+                            <input type="text" id="endpoint-${item.name}" placeholder="http://external-vllm:8000/v1" />
+                        </div>
+                    `;
+                }
                 statusControlHtml = `
                     <div class="deployment-config">
                         <div class="input-group">
                             <label for="ns-${item.name}">Target Namespace</label>
                             <input type="text" id="ns-${item.name}" placeholder="Default: gke-showcase-${item.name}" />
                         </div>
+                        ${extraConfig}
                     </div>
                     <button class="btn-deploy" data-name="${item.name}">Deploy Showcase</button>
                 `;
@@ -207,6 +225,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Handle dynamic button clicks
+    featuresGrid.addEventListener("change", (e) => {
+        const target = e.target;
+        if (target.classList.contains("provider-select")) {
+            const name = target.id.replace("provider-", "");
+            const endpointGroup = document.getElementById(`endpoint-group-${name}`);
+            if (endpointGroup) {
+                if (target.value === "custom") {
+                    endpointGroup.style.display = "block";
+                } else {
+                    endpointGroup.style.display = "none";
+                }
+            }
+        }
+    });
+
     featuresGrid.addEventListener("click", async (e) => {
         const target = e.target;
         const name = target.getAttribute("data-name");
@@ -216,6 +249,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (target.classList.contains("btn-deploy") && !target.classList.contains("btn-teardown")) {
             const nsInput = document.getElementById(`ns-${name}`);
             const namespaceValue = nsInput ? (nsInput.value.strip ? nsInput.value.strip() : nsInput.value.trim()) : "";
+            const providerSelect = document.getElementById(`provider-${name}`);
+            const llm_provider = providerSelect ? providerSelect.value : "vertex";
+            const endpointInput = document.getElementById(`endpoint-${name}`);
+            const llm_service_endpoint = (endpointInput && llm_provider === "custom") ? endpointInput.value.trim() : "";
             
             target.textContent = "Initiating...";
             target.disabled = true;
@@ -224,7 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const response = await fetchWithAuth(`/api/showcases/${name}/deploy`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ namespace: namespaceValue })
+                    body: JSON.stringify({ namespace: namespaceValue, llm_provider, llm_service_endpoint })
                 });
                 
                 if (!response.ok && response.status !== 401) throw new Error("Failed to initiate deployment.");

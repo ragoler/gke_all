@@ -123,7 +123,7 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
 # ----------------------------------------------------------------------
 # BASE INFRAS MANAGEMENT (DEPLOY & TEARDOWN)
 # ----------------------------------------------------------------------
-async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLocal=None):
+async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex", llm_service_endpoint: str = "", db_session=None, SessionLocal=None):
     target_ns = namespace.strip() if namespace else f"gke-showcase-{name}"
     
     db = db_session if db_session else (SessionLocal() if SessionLocal else None)
@@ -200,9 +200,9 @@ async def deploy_showcase(name: str, namespace: str, db_session=None, SessionLoc
                         "PROJECT_NAME": config.PROJECT_NAME,
                         "REGION": config.REGION,
                         "NAMESPACE": target_ns,
-                        "GOOGLE_GENAI_USE_VERTEXAI": "TRUE" if config.GOOGLE_GENAI_USE_VERTEXAI else "FALSE",
+                        "GOOGLE_GENAI_USE_VERTEXAI": "TRUE" if (llm_provider == "vertex") else "FALSE",
                         "GCS_MODEL_BUCKET": config.GCS_MODEL_BUCKET,
-                        "OPENAI_API_BASE": f"http://vllm-service.{vllm_ns}.svc.cluster.local:8000/v1",
+                        "OPENAI_API_BASE": llm_service_endpoint if (llm_service_endpoint and llm_provider in ("vllm", "custom")) else f"http://vllm-service.{vllm_ns}.svc.cluster.local:8000/v1",
                         "ARTIFACT_REGISTRY_REPO": config.ARTIFACT_REGISTRY_REPO
                     }
                     
