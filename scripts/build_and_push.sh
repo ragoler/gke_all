@@ -82,7 +82,7 @@ build_sandbox_router() {
 
 build_gpu_playroom() {
   echo ">>> Building GPU Inference Playroom app..."
-  docker build -t "${REGISTRY}/gpu-inference-playroom:latest" ./features/gpu-inference/app
+  docker build -t "${REGISTRY}/gpu-inference-playroom:latest" -f ./features/gpu-inference/app/Dockerfile ./features/gpu-inference
   echo ">>> Pushing GPU Inference Playroom app..."
   docker push "${REGISTRY}/gpu-inference-playroom:latest"
 }

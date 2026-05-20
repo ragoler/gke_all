@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vLLM GPU Playground</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">vLLM GPU Playground - Model: CodeGemma 7B Instruct</div>
+        <div class="chat-messages" id="chat-box">
+            <div class="message ai">Hello! I am a self-hosted open-source LLM running on GKE Spot GPU nodes. How can I help you today?</div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter') sendMessage()" />
+            <button class="btn-send" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
