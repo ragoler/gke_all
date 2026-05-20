@@ -86,26 +86,26 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
         18. `test_dual_showcase_inter_routing`: Audits `X-Sandbox-Provider: vllm` internal cluster DNS routing.
     - `[x]` **Execution & Verification**: Run local CI (`pytest tests/`) confirming clean skip, and live verification (`pytest --run-live-gke tests/`) against the active cluster (40/40 passed).
 
-### [ ] Milestone 10: Embedded JWT Authentication & HTML Login UI
+### [x] Milestone 10: Embedded JWT Authentication & HTML Login UI
 *   **Objective**: Replace browser basic auth popups with an embedded HTML login card, JWT Bearer token authentication (`POST /api/auth/login`), and clean logout controls.
 *   **Architectural Specifications**:
     - **Backend (`showcase_admin`)**: Add `pyjwt>=2.8.0` to `requirements-dev.txt`. Overhaul `auth.py` to issue signed JWT tokens using `JWT_SECRET_KEY` and `HS256` algorithm with 24-hour expiration. Transition `security` dependency from `HTTPBasic` to `HTTPBearer(auto_error=False)`. In `main.py`, unprotect `GET /` to allow unauthenticated browser loading, and author `POST /api/auth/login` validating credentials against `config.ADMIN_USERNAME` / `PASSWORD`.
     - **Frontend (`showcase_admin/frontend`)**: Update `index.html` with a dedicated header container for the Logout button. In `style.css`, author premium cosmic cyberpunk glassmorphic CSS styles for `.login-card`, `.login-header`, `.login-form`, and `.btn-logout`. In `app.js`, implement `localStorage.getItem("admin_jwt")` management, `fetchWithAuth(url, options)` wrappers attaching Bearer tokens to protected API queries, dynamic login screen injection upon HTTP 401, and clean logout click handlers.
     - **Automated Verification (`tests/unit/test_jwt_auth.py`)**: Author robust async unit tests verifying token generation, signature verification, expiration rejection, successful vs failed login routes, and protected API access.
 *   **Tasks**:
-    - `[ ]` Core Backend Authentication Upgrade
-        - `[ ]` Add `pyjwt>=2.8.0` to `showcase_admin/requirements-dev.txt`.
-        - `[ ]` Implement JWT encoding/decoding and `HTTPBearer` verification in `showcase_admin/app/auth.py`.
-        - `[ ]` Unprotect `GET /` and implement `POST /api/auth/login` in `showcase_admin/app/main.py`.
-    - `[ ]` Premium Frontend SPA UI Upgrade
-        - `[ ]` Add Logout button container to `showcase_admin/frontend/index.html`.
-        - `[ ]` Add glassmorphic login card and logout button styles to `showcase_admin/frontend/style.css`.
-        - `[ ]` Refactor `showcase_admin/frontend/app.js` with `localStorage` token management, auth fetch wrappers, and login screen rendering.
-    - `[ ]` Automated Testing & Verification
-        - `[ ]` Author `tests/unit/test_jwt_auth.py` verifying token generation, verification, and API route protection.
-        - `[ ]` Execute `pytest tests/` confirming 100% passing unit/integration tests.
-        - `[ ]` Rebuild container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
-        - `[ ]` Update `walkthrough.md` and mark Milestone 10 as completed `[x]` in `plan.md`.
+    - `[x]` Core Backend Authentication Upgrade
+        - `[x]` Add `pyjwt>=2.8.0` to `showcase_admin/requirements-dev.txt`.
+        - `[x]` Implement JWT encoding/decoding and `HTTPBearer` verification in `showcase_admin/app/auth.py`.
+        - `[x]` Unprotect `GET /` and implement `POST /api/auth/login` in `showcase_admin/app/main.py`.
+    - `[x]` Premium Frontend SPA UI Upgrade
+        - `[x]` Add Logout button container to `showcase_admin/frontend/index.html`.
+        - `[x]` Add glassmorphic login card and logout button styles to `showcase_admin/frontend/style.css`.
+        - `[x]` Refactor `showcase_admin/frontend/app.js` with `localStorage` token management, auth fetch wrappers, and login screen rendering.
+    - `[x]` Automated Testing & Verification
+        - `[x]` Author `tests/unit/test_jwt_auth.py` verifying token generation, verification, and API route protection.
+        - `[x]` Execute `pytest tests/` confirming 100% passing unit/integration tests.
+        - `[x]` Rebuild container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
+        - `[x]` Update `walkthrough.md` and mark Milestone 10 as completed `[x]` in `plan.md`.
 
 ### [x] Milestone 11: Robust Showcase Lifecycle State Synchronization
 *   **Objective**: Ensure instantaneous status synchronization during deployment and teardown transitions, adding active K8s readiness and deletion polling loops.
