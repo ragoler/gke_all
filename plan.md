@@ -152,13 +152,13 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Author `/tests/integration/test_telemetry_api.py` verifying accurate node/workload aggregation and mock API responses.
     - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 15: Soft Dependencies & Runtime IP Injection
+### [x] Milestone 15: Soft Dependencies & Runtime IP Injection
 *   **Objective**: Enable showcases to dynamically reference one another via runtime IP injection during deployment.
 *   **Tasks**:
-    - `[ ]` Add LLM provider selection dropdown (Gemini Cloud vs Deployed GPU Inference Gateway IP) to Admin UI deployment modal.
-    - `[ ]` Pass selected connection string into manifest template rendering (`${LLM_SERVICE_ENDPOINT}`).
-    - `[ ]` Author `/tests/unit/test_manifest_injection.py` verifying dynamic variable replacement and template expansion.
-    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+    - `[x]` Add LLM provider selection dropdown (Gemini Cloud vs Deployed GPU Inference Gateway IP) to Admin UI deployment modal.
+    - `[x]` Pass selected connection string into manifest template rendering (`${LLM_SERVICE_ENDPOINT}`).
+    - `[x]` Author `/tests/unit/test_manifest_injection.py` verifying dynamic variable replacement and template expansion.
+    - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
 ### [ ] Milestone 16: Comprehensive Test Suite Expansion & Code Coverage Optimization
 *   **Objective**: Significantly expand automated testing across all layers of the repository to achieve >90% test coverage.
