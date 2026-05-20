@@ -143,14 +143,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Author `/tests/integration/test_gateway_routing.py` verifying Gateway IP extraction and CORS header presence under mock state.
     - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 14: Global Cluster Telemetry & Statistics
+### [x] Milestone 14: Global Cluster Telemetry & Statistics
 *   **Objective**: Build a real-time cluster statistics engine querying the Kubernetes API directly for compute, workload, and accelerator metrics.
 *   **Tasks**:
-    - `[ ]` Implement `GET /api/stats` in `main.py` and `k8s_client.py` invoking k8s API object listings (`list_node`, `list_namespace`, `list_pod_for_all_namespaces`).
-    - `[ ]` Aggregate Node counts, Namespace counts, Pod statuses, and active GPU/gVisor accelerator counts.
-    - `[ ]` Build a dedicated **Cluster Telemetry** tab in `index.html` and `app.js` displaying live cluster diagnostic health.
-    - `[ ]` Author `/tests/integration/test_telemetry_api.py` verifying accurate node/workload aggregation and mock API responses.
-    - `[ ]` Execute automated test suite and verify 100% passing status before completion.
+    - `[x]` Implement `GET /api/stats` in `main.py` and `k8s_client.py` invoking k8s API object listings (`list_node`, `list_namespace`, `list_pod_for_all_namespaces`).
+    - `[x]` Aggregate Node counts, Namespace counts, Pod statuses, and active GPU/gVisor accelerator counts.
+    - `[x]` Build a dedicated **Cluster Telemetry** tab in `index.html` and `app.js` displaying live cluster diagnostic health.
+    - `[x]` Author `/tests/integration/test_telemetry_api.py` verifying accurate node/workload aggregation and mock API responses.
+    - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
 ### [ ] Milestone 15: Soft Dependencies & Runtime IP Injection
 *   **Objective**: Enable showcases to dynamically reference one another via runtime IP injection during deployment.
