@@ -160,14 +160,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Author `/tests/unit/test_manifest_injection.py` verifying dynamic variable replacement and template expansion.
     - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 16: Comprehensive Test Suite Expansion & Code Coverage Optimization
+### [x] Milestone 16: Comprehensive Test Suite Expansion & Code Coverage Optimization
 *   **Objective**: Significantly expand automated testing across all layers of the repository to achieve >90% test coverage.
 *   **Tasks**:
-    - `[ ]` Install `pytest-cov` to measure test coverage metrics across the virtual environment.
-    - `[ ]` Expand SQLite database unit tests (`/tests/unit/test_db.py`) to test edge cases (e.g. duplicate showcase names, invalid status transitions).
-    - `[ ]` Expand GKE mock client tests (`/tests/integration/test_k8s_mock.py`) to simulate API timeouts and gateway resolution fallbacks.
-    - `[ ]` Author longevity and resilience mock tests simulating repeated deploy/teardown cycles across multiple concurrent showcases.
-    - `[ ]` Execute full coverage report (`pytest --cov=showcase_admin --cov=features tests/`) and verify >90% code coverage.
+    - `[x]` Install `pytest-cov` to measure test coverage metrics across the virtual environment.
+    - `[x]` Expand SQLite database unit tests (`/tests/unit/test_db.py`) to test edge cases (e.g. duplicate showcase names, invalid status transitions).
+    - `[x]` Expand GKE mock client tests (`/tests/integration/test_k8s_mock.py`) to simulate API timeouts and gateway resolution fallbacks.
+    - `[x]` Author longevity and resilience mock tests simulating repeated deploy/teardown cycles across multiple concurrent showcases.
+    - `[x]` Execute full coverage report (`pytest --cov=showcase_admin --cov=features tests/`) and verify >90% code coverage.
 
 ### [ ] Milestone 17: Refactor GPU Inference Playroom (Separation of Concerns)
 *   **Objective**: Eliminate the embedded HTML/CSS/JS string in `features/gpu-inference/app/main.py` by refactoring the UI into standalone frontend assets (`index.html`, `style.css`, `app.js`).
