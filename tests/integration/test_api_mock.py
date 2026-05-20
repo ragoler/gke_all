@@ -99,3 +99,71 @@ def test_api_get_logs(client):
         assert "Initializing namespace" in data["logs"]
     finally:
         app.dependency_overrides.clear()
+
+def test_api_html_playrooms(client):
+    from showcase_admin.app.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: True
+    try:
+        resp_root = client.get("/")
+        assert resp_root.status_code == 200
+        
+        resp_sb = client.get("/sandbox/")
+        assert resp_sb.status_code == 200
+        
+        resp_inf = client.get("/inference/")
+        assert resp_inf.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+def test_api_cluster_stats(client):
+    from showcase_admin.app.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: True
+    try:
+        response = client.get("/api/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["mode"] == "MOCK"
+    finally:
+        app.dependency_overrides.clear()
+
+def test_api_sandbox_claims(client):
+    from showcase_admin.app.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: True
+    try:
+        # 1. Create claim
+        create_resp = client.post("/api/sandboxes")
+        assert create_resp.status_code == 200
+        claim_data = create_resp.json()
+        claim_id = claim_data["id"]
+        
+        # 2. List claims
+        list_resp = client.get("/api/sandboxes")
+        assert list_resp.status_code == 200
+        assert any(item["id"] == claim_id for item in list_resp.json())
+        
+        # 3. Message claim
+        msg_resp = client.post(f"/api/sandboxes/{claim_id}/message", json={"message": "hello test", "provider": "vertex"})
+        assert msg_resp.status_code == 200
+        assert "Recieved your prompt 'hello test'" in msg_resp.json()["reply"]
+        
+        # 4. Quote claim
+        quote_resp = client.post(f"/api/sandboxes/{claim_id}/quote", json={"provider": "vertex"})
+        assert quote_resp.status_code == 200
+        assert "predict the future" in quote_resp.json()["quote"]
+        
+        # 5. Delete claim
+        del_resp = client.delete(f"/api/sandboxes/{claim_id}")
+        assert del_resp.status_code == 200
+        assert del_resp.json()["id"] == claim_id
+    finally:
+        app.dependency_overrides.clear()
+
+def test_api_inference_chat(client):
+    from showcase_admin.app.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: True
+    try:
+        resp = client.post("/api/inference/chat", json={"prompt": "What is AI?"})
+        assert resp.status_code == 200
+        assert "MOCK INFERENCE" in resp.json()["reply"]
+    finally:
+        app.dependency_overrides.clear()

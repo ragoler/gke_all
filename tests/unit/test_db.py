@@ -52,6 +52,8 @@ def test_update_showcase_status(db_session):
     
     # Update state
     fetched = db_session.query(ShowcaseModel).filter_by(name="gpu-inference").first()
+    fetched.status = "DEPLOYING"
+    db_session.commit()
     fetched.status = "ACTIVE"
     fetched.reach_out_url = "http://localhost/inference"
     db_session.commit()
@@ -72,3 +74,15 @@ def test_duplicate_showcase_name_fails(db_session):
     db_session.add(showcase2)
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+def test_invalid_status_string(db_session):
+    with pytest.raises(ValueError, match="Invalid status: UNKNOWN_STATUS"):
+        ShowcaseModel(name="test-invalid", status="UNKNOWN_STATUS")
+
+def test_invalid_status_transition(db_session):
+    showcase = ShowcaseModel(name="test-transition", status="DORMANT")
+    db_session.add(showcase)
+    db_session.commit()
+    
+    with pytest.raises(ValueError, match="Invalid transition from DORMANT to ACTIVE"):
+        showcase.status = "ACTIVE"

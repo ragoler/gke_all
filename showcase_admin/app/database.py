@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker, validates
 from showcase_admin.app import config
 
 # Helper for timezone-aware UTC timestamps converted naive for SQLite compatibility
@@ -39,6 +39,22 @@ class ShowcaseModel(Base):
     reach_out_url = Column(String, nullable=True)                 # reach out routing gateway URL
     installed_at = Column(DateTime, nullable=True)
     last_updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    @validates("status")
+    def validate_status(self, key, new_status):
+        valid_statuses = {"DORMANT", "DEPLOYING", "PROVISIONING", "ACTIVE", "TERMINATING", "ERROR"}
+        if new_status not in valid_statuses:
+            raise ValueError(f"Invalid status: {new_status}")
+            
+        if getattr(self, "status", None) is not None:
+            old_status = self.status
+            if old_status == "DORMANT" and new_status not in {"DORMANT", "DEPLOYING", "ERROR"}:
+                raise ValueError(f"Invalid transition from {old_status} to {new_status}")
+            if old_status == "TERMINATING" and new_status not in {"TERMINATING", "DORMANT", "ERROR"}:
+                raise ValueError(f"Invalid transition from {old_status} to {new_status}")
+            if old_status == "ACTIVE" and new_status not in {"ACTIVE", "DEPLOYING", "TERMINATING", "ERROR"}:
+                raise ValueError(f"Invalid transition from {old_status} to {new_status}")
+        return new_status
 
 def init_db():
     # Create tables if they don't exist

@@ -8,6 +8,12 @@ except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--index-url", "https://pypi.org/simple", "pyjwt>=2.8.0"])
 
+try:
+    import pytest_cov
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--index-url", "https://pypi.org/simple", "pytest-cov>=4.1.0"])
+
 
 # Ensure workspace directory is in the Python search path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
