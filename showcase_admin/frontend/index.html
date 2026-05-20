@@ -44,11 +44,55 @@
             </div>
         </section>
 
-        <!-- Main Feature Grid -->
-        <main class="features-grid" id="features-grid">
-            <!-- Feature Cards will be injected dynamically by app.js -->
-            <div class="card-skeleton">Loading feature showcases...</div>
-        </main>
+        <!-- Navigation Tab Bar -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="showcases-view">Showcases</button>
+            <button class="tab-btn" data-tab="telemetry-view">Cluster Telemetry</button>
+        </nav>
+
+        <!-- Showcases Tab View -->
+        <section id="showcases-view" class="tab-view active">
+            <!-- Main Feature Grid -->
+            <main class="features-grid" id="features-grid">
+                <!-- Feature Cards will be injected dynamically by app.js -->
+                <div class="card-skeleton">Loading feature showcases...</div>
+            </main>
+        </section>
+
+        <!-- Cluster Telemetry Tab View -->
+        <section id="telemetry-view" class="tab-view" style="display: none;">
+            <div class="telemetry-header">
+                <h2 class="telemetry-title">Real-Time Cluster Diagnostics</h2>
+                <span class="telemetry-status">Updating every 5s</span>
+            </div>
+            <div class="telemetry-grid" id="telemetry-grid">
+                <div class="telemetry-card">
+                    <span class="telemetry-label">Compute Nodes</span>
+                    <span class="telemetry-val" id="telemetry-nodes-total">-</span>
+                    <span class="telemetry-sub" id="telemetry-nodes-ready">Ready: -</span>
+                </div>
+                <div class="telemetry-card">
+                    <span class="telemetry-label">Active Namespaces</span>
+                    <span class="telemetry-val" id="telemetry-namespaces">-</span>
+                    <span class="telemetry-sub">GKE Isolated Namespaces</span>
+                </div>
+                <div class="telemetry-card">
+                    <span class="telemetry-label">Pod Workloads</span>
+                    <span class="telemetry-val" id="telemetry-pods-total">-</span>
+                    <span class="telemetry-sub" id="telemetry-pods-details">Running: - | Pending: - | Failed: -</span>
+                </div>
+                <div class="telemetry-card">
+                    <span class="telemetry-label">Nvidia L4 GPUs</span>
+                    <span class="telemetry-val" id="telemetry-gpu">-</span>
+                    <span class="telemetry-sub">Dedicated Hardware Allocations</span>
+                </div>
+                <div class="telemetry-card">
+                    <span class="telemetry-label">gVisor Sandboxes</span>
+                    <span class="telemetry-val" id="telemetry-gvisor">-</span>
+                    <span class="telemetry-sub">Kernel-Isolated Runtimes</span>
+                </div>
+            </div>
+        </section>
     </div>
 
     <!-- Console Modal Overlay -->

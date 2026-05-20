@@ -144,6 +144,10 @@ async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depend
         })
     return result
 
+@app.get("/api/stats", dependencies=api_dependencies)
+async def get_cluster_stats():
+    return await k8s_client.get_cluster_stats()
+
 @app.post("/api/showcases/{name}/deploy", dependencies=api_dependencies)
 async def deploy_feature(
     name: str, 

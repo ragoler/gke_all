@@ -570,3 +570,113 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                     db.close()
         except Exception:
             pass
+
+async def get_cluster_stats() -> dict:
+    if config.MODE == "MOCK":
+        return {
+            "mode": "MOCK",
+            "nodes": {
+                "total": 2,
+                "ready": 2
+            },
+            "namespaces": {
+                "total": 5
+            },
+            "pods": {
+                "total": 14,
+                "running": 12,
+                "pending": 1,
+                "failed": 1
+            },
+            "accelerators": {
+                "nvidia_l4": 1,
+                "gvisor": 2
+            }
+        }
+
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        core_v1 = client.CoreV1Api(api_client)
+        
+        try:
+            # 1. Nodes
+            nodes = await core_v1.list_node()
+            total_nodes = len(nodes.items)
+            ready_nodes = 0
+            gvisor_nodes = 0
+            for node in nodes.items:
+                if node.status and node.status.conditions:
+                    for cond in node.status.conditions:
+                        if cond.type == "Ready" and cond.status == "True":
+                            ready_nodes += 1
+                            break
+                labels = (node.metadata and node.metadata.labels) or {}
+                if labels.get("sandbox.gke.io/runtime") == "gvisor":
+                    gvisor_nodes += 1
+
+            # 2. Namespaces
+            namespaces = await core_v1.list_namespace()
+            total_namespaces = len(namespaces.items)
+
+            # 3. Pods and Accelerators
+            pods = await core_v1.list_pod_for_all_namespaces()
+            total_pods = len(pods.items)
+            running_pods = 0
+            pending_pods = 0
+            failed_pods = 0
+            nvidia_l4_count = 0
+            gvisor_pods = 0
+
+            for pod in pods.items:
+                phase = getattr(pod.status, "phase", "Unknown") if pod.status else "Unknown"
+                if phase == "Running":
+                    running_pods += 1
+                elif phase == "Pending":
+                    pending_pods += 1
+                elif phase == "Failed":
+                    failed_pods += 1
+
+                if pod.spec:
+                    if getattr(pod.spec, "runtime_class_name", None) == "gvisor":
+                        gvisor_pods += 1
+                    containers = getattr(pod.spec, "containers", []) or []
+                    for c in containers:
+                        res = getattr(c, "resources", None)
+                        if res and hasattr(res, "requests") and res.requests:
+                            gpu_req = res.requests.get("nvidia.com/gpu")
+                            if gpu_req:
+                                try:
+                                    nvidia_l4_count += int(gpu_req)
+                                except ValueError:
+                                    nvidia_l4_count += 1
+
+            return {
+                "mode": "REAL",
+                "nodes": {
+                    "total": total_nodes,
+                    "ready": ready_nodes
+                },
+                "namespaces": {
+                    "total": total_namespaces
+                },
+                "pods": {
+                    "total": total_pods,
+                    "running": running_pods,
+                    "pending": pending_pods,
+                    "failed": failed_pods
+                },
+                "accelerators": {
+                    "nvidia_l4": nvidia_l4_count,
+                    "gvisor": max(gvisor_nodes, gvisor_pods)
+                }
+            }
+        except Exception as e:
+            return {
+                "mode": "REAL",
+                "error": str(e),
+                "nodes": {"total": 0, "ready": 0},
+                "namespaces": {"total": 0},
+                "pods": {"total": 0, "running": 0, "pending": 0, "failed": 0},
+                "accelerators": {"nvidia_l4": 0, "gvisor": 0}
+            }
+

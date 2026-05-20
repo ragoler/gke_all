@@ -313,6 +313,77 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }, 1000);
 
+    // ==============================================================================
+    // Tab Navigation & Telemetry Polling
+    // ==============================================================================
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const tabViews = document.querySelectorAll(".tab-view");
+    let telemetryInterval = null;
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+
+            const targetId = btn.getAttribute("data-tab");
+            tabViews.forEach(view => {
+                if (view.id === targetId) {
+                    view.style.display = "block";
+                } else {
+                    view.style.display = "none";
+                }
+            });
+
+            if (targetId === "telemetry-view") {
+                fetchTelemetry();
+                if (!telemetryInterval) {
+                    telemetryInterval = setInterval(fetchTelemetry, 5000);
+                }
+            } else {
+                if (telemetryInterval) {
+                    clearInterval(telemetryInterval);
+                    telemetryInterval = null;
+                }
+            }
+        });
+    });
+
+    async function fetchTelemetry() {
+        try {
+            const res = await fetchWithAuth("/api/stats");
+            if (!res.ok) return;
+            const data = await res.json();
+
+            const nodesTotal = document.getElementById("telemetry-nodes-total");
+            const nodesReady = document.getElementById("telemetry-nodes-ready");
+            const namespaces = document.getElementById("telemetry-namespaces");
+            const podsTotal = document.getElementById("telemetry-pods-total");
+            const podsDetails = document.getElementById("telemetry-pods-details");
+            const gpuVal = document.getElementById("telemetry-gpu");
+            const gvisorVal = document.getElementById("telemetry-gvisor");
+
+            if (nodesTotal && data.nodes) {
+                nodesTotal.textContent = data.nodes.total;
+                nodesReady.textContent = `Ready: ${data.nodes.ready}`;
+            }
+            if (namespaces && data.namespaces) {
+                namespaces.textContent = data.namespaces.total;
+            }
+            if (podsTotal && data.pods) {
+                podsTotal.textContent = data.pods.total;
+                podsDetails.textContent = `Running: ${data.pods.running} | Pending: ${data.pods.pending} | Failed: ${data.pods.failed}`;
+            }
+            if (gpuVal && data.accelerators) {
+                gpuVal.textContent = data.accelerators.nvidia_l4;
+            }
+            if (gvisorVal && data.accelerators) {
+                gvisorVal.textContent = data.accelerators.gvisor;
+            }
+        } catch (err) {
+            console.error("Failed to fetch cluster telemetry:", err);
+        }
+    }
+
     // Bootstrap Setup
     fetchShowcases();
 });
