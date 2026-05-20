@@ -66,6 +66,13 @@ async def serve_inference_playroom():
         return FileResponse(inference_html)
     raise HTTPException(status_code=404, detail="Inference playroom file not found.")
 
+@app.get("/gateway/", response_class=HTMLResponse, dependencies=api_dependencies)
+async def serve_inference_gateway_playroom():
+    gateway_html = os.path.join(frontend_dir, 'features', 'inference-gateway', 'index.html')
+    if os.path.exists(gateway_html):
+        return FileResponse(gateway_html)
+    raise HTTPException(status_code=404, detail="Inference Gateway playroom file not found.")
+
 # Available Features Metadata
 AVAILABLE_SHOWCASES = {
     "agent-sandbox": {
@@ -79,6 +86,12 @@ AVAILABLE_SHOWCASES = {
         "title": "vLLM GPU Model Inference",
         "description": "Serve self-hosted open-source Large Language Models (e.g., Gemma 2B) leveraging GKE Spot Nvidia L4 GPUs and GCSFuse volume mapping to mount bucket checkpoints.",
         "gke_features": ["Nvidia L4 Spot GPU Pools", "GCS FUSE CSI Storage Driver", "Gateway Ingress API routing", "Dynamic GPU cluster scaling"]
+    },
+    "inference-gateway": {
+        "name": "inference-gateway",
+        "title": "GKE Inference Gateway",
+        "description": "Advanced L7 AI-aware load balancing, token-aware routing, and priority queueing for Large Language Model serving on GKE.",
+        "gke_features": ["InferencePool Custom Resources", "InferenceObjective Queuing", "Token-Aware Load Balancing", "L7 Gateway API"]
     }
 }
 
@@ -127,7 +140,7 @@ async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depend
         # Dynamically resolve reach out URL pointing to localhost or external Gateway IP
         reach_out_url = None
         if db_item and db_item.status == "ACTIVE":
-            reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+            reach_out_url = k8s_client.FEATURE_URL_MAP.get(name)
             
         if db_item and db_item.status in ("DEPLOYING", "PROVISIONING"):
             background_tasks.add_task(k8s_client.check_and_update_showcase_status, name, db_item.namespace)
@@ -308,4 +321,18 @@ async def model_garden_inference(
     ns = get_feature_namespace(db, "gpu-inference")
     
     reply = await k8s_client.query_gpu_inference_server(ns, prompt)
+    return {"reply": reply}
+
+# --- FEATURE 3: ADVANCED GKE INFERENCE GATEWAY ---
+class GatewayRequestPayload(BaseModel):
+    prompt: str
+    priority: str = "default"
+
+@app.post("/api/gateway/request", dependencies=api_dependencies)
+async def gateway_request_api(
+    body: GatewayRequestPayload,
+    db: Session = Depends(database.get_db)
+):
+    ns = get_feature_namespace(db, "inference-gateway")
+    reply = await k8s_client.query_inference_gateway(ns, body.prompt, body.priority)
     return {"reply": reply}

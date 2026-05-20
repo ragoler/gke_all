@@ -22,7 +22,7 @@ show_help() {
   echo "Usage: ./scripts/build_and_push.sh [options]"
   echo ""
   echo "Options:"
-  echo "  --feature <name>  Build only a specific container: admin, sandbox-demo, sandbox-router, gpu-playroom"
+  echo "  --feature <name>  Build only a specific container: admin, sandbox-demo, sandbox-router, gpu-playroom, inference-gateway"
   echo "  --help            Display this menu"
 }
 
@@ -87,6 +87,13 @@ build_gpu_playroom() {
   docker push "${REGISTRY}/gpu-inference-playroom:latest"
 }
 
+build_inference_gateway() {
+  echo ">>> Building Inference Gateway Playroom app..."
+  docker build -t "${REGISTRY}/inference-gateway-playroom:latest" -f ./features/inference-gateway/app/Dockerfile ./features/inference-gateway
+  echo ">>> Pushing Inference Gateway Playroom app..."
+  docker push "${REGISTRY}/inference-gateway-playroom:latest"
+}
+
 # Orchestrate builds
 if [ -n "$TARGET_FEATURE" ]; then
   case $TARGET_FEATURE in
@@ -94,6 +101,7 @@ if [ -n "$TARGET_FEATURE" ]; then
     sandbox-demo) build_sandbox_demo ;;
     sandbox-router) build_sandbox_router ;;
     gpu-playroom) build_gpu_playroom ;;
+    inference-gateway) build_inference_gateway ;;
     *) echo "Unsupported feature target: $TARGET_FEATURE"; exit 1 ;;
   esac
 else
@@ -102,6 +110,7 @@ else
   build_sandbox_demo
   build_sandbox_router
   build_gpu_playroom
+  build_inference_gateway
 fi
 
 echo "======================================================================"

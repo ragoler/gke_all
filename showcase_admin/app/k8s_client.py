@@ -13,6 +13,18 @@ from showcase_admin.app.database import ShowcaseModel
 _k8s_initialized = False
 mock_claims = {} # Local mock in-memory cache for offline mock-mode claims
 
+FEATURE_DEPLOYMENT_MAP = {
+    "agent-sandbox": "sandbox-router-deployment",
+    "gpu-inference": "gpu-inference-deployment",
+    "inference-gateway": "inference-gateway-deployment"
+}
+
+FEATURE_URL_MAP = {
+    "agent-sandbox": "/sandbox/",
+    "gpu-inference": "/inference/",
+    "inference-gateway": "/gateway/"
+}
+
 async def init_k8s_connection():
     if config.MODE == "MOCK":
         return
@@ -60,6 +72,8 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
     # If gateway IP is still reconciling, return cluster-internal service DNS as fallback
     if "sandbox" in namespace:
         return f"sandbox-router-svc.{namespace}.svc.cluster.local:8080"
+    elif "inference-gateway" in namespace or gateway_name == "inference-gateway":
+        return f"inference-gateway-svc.{namespace}.svc.cluster.local:8080"
     elif "inference" in namespace:
         return f"inference-playroom-svc.{namespace}.svc.cluster.local:8080"
     return "127.0.0.1"
@@ -107,6 +121,10 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                         plural = "sandboxwarmpools"
                     elif kind == "HealthCheckPolicy":
                         plural = "healthcheckpolicies"
+                    elif kind == "InferencePool":
+                        plural = "inferencepools"
+                    elif kind == "InferenceObjective":
+                        plural = "inferenceobjectives"
                         
                     await custom_api.create_namespaced_custom_object(
                         group=group,
@@ -146,7 +164,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
             # Wait 2 seconds in Mock mode to let user experience "DEPLOYING" state
             await asyncio.sleep(2)
             showcase.status = "ACTIVE"
-            showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
             db.commit()
         else:
             await init_k8s_connection()
@@ -216,7 +234,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                             
                 # Active readiness polling loop using AppsV1Api.read_namespaced_deployment
                 apps_v1 = client.AppsV1Api(api_client)
-                dep_name = "sandbox-router-deployment" if name == "agent-sandbox" else "gpu-inference-deployment"
+                dep_name = FEATURE_DEPLOYMENT_MAP.get(name, f"{name}-deployment")
                 is_ready = False
                 for _ in range(60):
                     try:
@@ -239,7 +257,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                 if showcase and showcase.namespace == target_ns:
                     if is_ready:
                         showcase.status = "ACTIVE"
-                        showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                        showcase.reach_out_url = FEATURE_URL_MAP.get(name)
                     else:
                         showcase.status = "PROVISIONING"
                     db.commit()
@@ -546,13 +564,38 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
     except Exception as e:
         return f"Failed to query GKE GPU model server: {str(e)}"
 
+# --- FEATURE 3: ADVANCED GKE INFERENCE GATEWAY ---
+async def query_inference_gateway(namespace: str, prompt: str, priority: str) -> str:
+    if config.MODE == "MOCK":
+        return f"[MOCK INFERENCE GATEWAY] Processed prompt: '{prompt}' with Priority [{priority.upper()}]. Token-aware load balancing successful."
+        
+    if config.SANDBOX_ROUTER_URL:
+        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/gateway/request"
+    else:
+        gateway_ip = await get_gateway_ip(namespace, "inference-gateway")
+        url = f"http://{gateway_ip}/request"
+        
+    headers = {
+        "X-Inference-Priority": priority,
+        "Content-Type": "application/json"
+    }
+    payload = {"prompt": prompt, "priority": priority}
+    
+    try:
+        response = await execute_http_with_retry("POST", url, headers=headers, json_payload=payload, timeout=45.0)
+        if response.status_code != 200:
+            raise Exception(f"Inference Gateway returned error: {response.text}")
+        return response.json().get("reply", "")
+    except Exception as e:
+        return f"Failed to query GKE Inference Gateway: {str(e)}"
+
 async def check_and_update_showcase_status(name: str, namespace: str):
     if config.MODE == "MOCK" or not namespace:
         return
     await init_k8s_connection()
     async with client.ApiClient() as api_client:
         apps_v1 = client.AppsV1Api(api_client)
-        dep_name = "sandbox-router-deployment" if name == "agent-sandbox" else "gpu-inference-deployment"
+        dep_name = FEATURE_DEPLOYMENT_MAP.get(name, f"{name}-deployment")
         try:
             dep = await apps_v1.read_namespaced_deployment(dep_name, namespace)
             if dep and hasattr(dep, "status") and getattr(dep.status, "ready_replicas", None) is not None:
@@ -564,7 +607,7 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                     if showcase and showcase.status in ("DEPLOYING", "PROVISIONING") and showcase.namespace == namespace:
                         if ready == desired and ready > 0:
                             showcase.status = "ACTIVE"
-                            showcase.reach_out_url = f"/sandbox/" if name == "agent-sandbox" else f"/inference/"
+                            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
                             db.commit()
                 finally:
                     db.close()

@@ -1,0 +1,9 @@
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: advanced-inference-pool
+  namespace: ${NAMESPACE}
+spec:
+  targetService:
+    name: inference-gateway-svc
+    port: 8080
