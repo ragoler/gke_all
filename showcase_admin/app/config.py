@@ -11,7 +11,7 @@ MODE = os.getenv("MODE", "MOCK").upper()
 ADMIN_AUTHENTICATION_ENABLED = os.getenv("ADMIN_AUTHENTICATION_ENABLED", "FALSE").upper() == "TRUE"
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin-password")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-insecure-jwt-secret-key")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-insecure-jwt-secret-key-32-bytes")
 
 PROJECT_NAME = os.getenv("PROJECT_NAME", "your-gcp-project-id")
 REGION = os.getenv("REGION", "us-west1")

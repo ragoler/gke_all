@@ -75,7 +75,7 @@ def test_protected_api_access_with_valid_token(client):
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True), \
          mock.patch("showcase_admin.app.config.ADMIN_USERNAME", "admin"), \
          mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"), \
-         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "secret-key"):
+         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "super-secret-jwt-signing-key-32-bytes"):
         
         # Get token
         login_resp = client.post("/api/auth/login", json={"username": "admin", "password": "pass"})

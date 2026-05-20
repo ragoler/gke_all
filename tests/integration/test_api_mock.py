@@ -34,7 +34,7 @@ def test_api_authorized_get_showcases(client):
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True), \
          mock.patch("showcase_admin.app.config.ADMIN_USERNAME", "admin"), \
          mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"), \
-         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "secret-key"):
+         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "super-secret-jwt-signing-key-32-bytes"):
         
         login_resp = client.post("/api/auth/login", json={"username": "admin", "password": "pass"})
         assert login_resp.status_code == 200
@@ -51,7 +51,7 @@ def test_api_deploy_feature(client):
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True), \
          mock.patch("showcase_admin.app.config.ADMIN_USERNAME", "admin"), \
          mock.patch("showcase_admin.app.config.ADMIN_PASSWORD", "pass"), \
-         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "secret-key"):
+         mock.patch("showcase_admin.app.config.JWT_SECRET_KEY", "super-secret-jwt-signing-key-32-bytes"):
         
         login_resp = client.post("/api/auth/login", json={"username": "admin", "password": "pass"})
         assert login_resp.status_code == 200

@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Global defaults for test authentication
 os.environ["ADMIN_AUTHENTICATION_ENABLED"] = "TRUE"
-os.environ["ADMIN_USERNAME"] = "test-admin"
-os.environ["ADMIN_PASSWORD"] = "test-pass"
+os.environ["ADMIN_USERNAME"] = "admin"
+os.environ["ADMIN_PASSWORD"] = "mock-pass"
 
 def pytest_addoption(parser):
     parser.addoption(
