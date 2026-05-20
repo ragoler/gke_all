@@ -169,14 +169,14 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Author longevity and resilience mock tests simulating repeated deploy/teardown cycles across multiple concurrent showcases.
     - `[x]` Execute full coverage report (`pytest --cov=showcase_admin --cov=features tests/`) and verify >90% code coverage.
 
-### [ ] Milestone 17: Refactor GPU Inference Playroom (Separation of Concerns)
+### [x] Milestone 17: Refactor GPU Inference Playroom (Separation of Concerns)
 *   **Objective**: Eliminate the embedded HTML/CSS/JS string in `features/gpu-inference/app/main.py` by refactoring the UI into standalone frontend assets (`index.html`, `style.css`, `app.js`).
 *   **Tasks**:
-    - `[ ]` Extract hardcoded HTML string from `main.py` and author `features/gpu-inference/frontend/index.html`.
-    - `[ ]` Extract CSS styles into `features/gpu-inference/frontend/style.css`.
-    - `[ ]` Extract client-side JavaScript into `features/gpu-inference/frontend/app.js`.
-    - `[ ]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
-    - `[ ]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.
+    - `[x]` Extract hardcoded HTML string from `main.py` and author `features/gpu-inference/frontend/index.html`.
+    - `[x]` Extract CSS styles into `features/gpu-inference/frontend/style.css`.
+    - `[x]` Extract client-side JavaScript into `features/gpu-inference/frontend/app.js`.
+    - `[x]` Refactor `main.py` to mount `StaticFiles` and return `FileResponse("index.html")`.
+    - `[x]` Verify standalone UI rendering and REST API communication (`POST /chat`) in local mock environment.
 
 ### [ ] Milestone 18: Showcase Feature 3 - Advanced GKE Inference Gateway (`inference-gateway`)
 *   **Objective**: Introduce a brand new showcase feature (`features/inference-gateway/`) demonstrating Google Cloud's AI-aware GKE Inference Gateway (`llm-d`), providing request priority queueing, token-aware load balancing, and serving criticality as documented at https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deploy-gke-inference-gateway.
