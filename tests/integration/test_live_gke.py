@@ -249,11 +249,17 @@ async def test_agent_sandbox_message_routing(live_admin_url):
     """Test 13: Audit POST /message routing and WIF Vertex AI fallback."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
-        core = client.CoreV1Api(api)
+        custom_api = client.CustomObjectsApi(api)
         for _ in range(45):
             try:
-                svc = await core.read_namespaced_service("sandbox-router-svc", SANDBOX_NS)
-                if svc.status.load_balancer.ingress:
+                gw = await custom_api.get_namespaced_custom_object(
+                    group="gateway.networking.k8s.io",
+                    version="v1",
+                    namespace=SANDBOX_NS,
+                    plural="gateways",
+                    name="agent-sandbox-gateway"
+                )
+                if gw.get("status", {}).get("addresses", []):
                     break
             except Exception:
                 pass
@@ -352,11 +358,17 @@ async def test_dual_showcase_inter_routing(live_admin_url):
     """Test 17: Audit X-Sandbox-Provider: vllm internal cluster DNS quote routing."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
-        core = client.CoreV1Api(api)
+        custom_api = client.CustomObjectsApi(api)
         for _ in range(45):
             try:
-                svc = await core.read_namespaced_service("inference-playroom-svc", GPU_NS)
-                if svc.status.load_balancer.ingress:
+                gw = await custom_api.get_namespaced_custom_object(
+                    group="gateway.networking.k8s.io",
+                    version="v1",
+                    namespace=GPU_NS,
+                    plural="gateways",
+                    name="gpu-inference-gateway"
+                )
+                if gw.get("status", {}).get("addresses", []):
                     break
             except Exception:
                 pass
