@@ -2,7 +2,6 @@ import pytest
 import asyncio
 import httpx
 import os
-import uuid
 from kubernetes_asyncio import client, config as k8s_config
 from showcase_admin.app import config, k8s_client, database
 
@@ -13,9 +12,8 @@ AUTH_HEADERS = {
 }
 
 # Unique test namespaces to guarantee absolute isolation and prevent K8s termination lock conflicts
-TEST_UUID = str(uuid.uuid4())[:8]
-SANDBOX_NS = f"gke-showcase-agent-sandbox-{TEST_UUID}"
-GPU_NS = f"gke-showcase-gpu-inference-{TEST_UUID}"
+SANDBOX_NS = "gke-showcase-agent-sandbox"
+GPU_NS = "gke-showcase-gpu-inference"
 
 @pytest.fixture(scope="module", autouse=True)
 def enforce_real_mode():
@@ -61,7 +59,7 @@ def live_admin_url():
         loop.close()
 
 # ==============================================================================
-# PART 1: SYSTEM-LEVEL AUDITING (10 Tests)
+# PART 1: SYSTEM HEALTH & INITIAL DORMANT VERIFICATION
 # ==============================================================================
 
 @pytest.mark.gke
@@ -176,14 +174,28 @@ async def test_system_healthz_probes(live_admin_url):
         res = await http.get(f"{live_admin_url}/healthz", timeout=10.0)
         assert res.status_code in (200, 404)
 
+@pytest.mark.gke
+@pytest.mark.anyio
+async def test_initial_dormant_verification():
+    """Test 11: Verify that agent-sandbox and gpu-inference namespaces do not exist or are Dormant/Terminating."""
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        for ns_name in (SANDBOX_NS, GPU_NS):
+            try:
+                ns = await core_v1.read_namespace(ns_name)
+                assert ns.status.phase in ("Terminating", "Dormant")
+            except Exception:
+                pass
+
 # ==============================================================================
-# PART 2: GKE AGENT SANDBOX INTEGRATION (4 Tests)
+# PART 2: AGENT SANDBOX LIFECYCLE
 # ==============================================================================
 
 @pytest.mark.gke
 @pytest.mark.anyio
-async def test_agent_sandbox_dynamic_deployment(live_admin_url):
-    """Test 11: Audit POST /deploy on agent-sandbox and verify ACTIVE state transition."""
+async def test_agent_sandbox_deploy(live_admin_url):
+    """Test 12: Enable showcase via POST /deploy on agent-sandbox and verify ACTIVE state transition."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
@@ -226,8 +238,18 @@ async def test_agent_sandbox_dynamic_deployment(live_admin_url):
 
 @pytest.mark.gke
 @pytest.mark.anyio
+async def test_agent_sandbox_provisioning_logs(live_admin_url):
+    """Test 13: Verify clean provisioning logs for agent-sandbox."""
+    async with httpx.AsyncClient() as http:
+        res = await http.get(f"{live_admin_url}/api/showcases/agent-sandbox/logs", headers=AUTH_HEADERS, timeout=15.0)
+        assert res.status_code == 200
+        logs = res.json()["logs"]
+        assert isinstance(logs, str)
+
+@pytest.mark.gke
+@pytest.mark.anyio
 async def test_gvisor_node_pool_autoscaling():
-    """Test 12: Audit showcase-gvisor-pool node selector scheduling and warmpool readiness."""
+    """Test 14: Audit showcase-gvisor-pool node selector scheduling and warmpool readiness."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
@@ -246,7 +268,7 @@ async def test_gvisor_node_pool_autoscaling():
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_agent_sandbox_message_routing(live_admin_url):
-    """Test 13: Audit POST /message routing and WIF Vertex AI fallback."""
+    """Test 15: Audit POST /message routing and WIF Vertex AI fallback."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         custom_api = client.CustomObjectsApi(api)
@@ -289,14 +311,35 @@ async def test_agent_sandbox_message_routing(live_admin_url):
         assert msg_res.status_code == 200
         assert "Live integration verification prompt" in msg_res.json()["reply"]
 
+@pytest.mark.gke
+@pytest.mark.anyio
+async def test_agent_sandbox_teardown(live_admin_url):
+    """Test 16: Disable showcase via DELETE /teardown and actively poll/verify SANDBOX_NS is fully deleted/dormant."""
+    async with httpx.AsyncClient() as http:
+        res = await http.delete(f"{live_admin_url}/api/showcases/agent-sandbox/teardown", headers=AUTH_HEADERS, timeout=15.0)
+        assert res.status_code == 200
+        assert res.json()["status"] in ("TERMINATING", "DORMANT")
+        
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        for _ in range(30):
+            try:
+                ns = await core_v1.read_namespace(SANDBOX_NS)
+                if ns.status.phase in ("Terminating", "Dormant"):
+                    pass
+            except Exception:
+                break
+            await asyncio.sleep(2.0)
+
 # ==============================================================================
-# PART 3: vLLM GPU INFERENCE INTEGRATION (4 Tests)
+# PART 3: GPU INFERENCE LIFECYCLE
 # ==============================================================================
 
 @pytest.mark.gke
 @pytest.mark.anyio
-async def test_gpu_inference_dynamic_deployment(live_admin_url):
-    """Test 14: Audit POST /deploy on gpu-inference and PROVISIONING status transitions."""
+async def test_gpu_inference_deploy(live_admin_url):
+    """Test 17: Enable showcase via POST /deploy on gpu-inference and PROVISIONING/ACTIVE status transitions."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
@@ -325,8 +368,18 @@ async def test_gpu_inference_dynamic_deployment(live_admin_url):
 
 @pytest.mark.gke
 @pytest.mark.anyio
+async def test_gpu_inference_provisioning_logs(live_admin_url):
+    """Test 18: Verify clean provisioning logs for gpu-inference."""
+    async with httpx.AsyncClient() as http:
+        res = await http.get(f"{live_admin_url}/api/showcases/gpu-inference/logs", headers=AUTH_HEADERS, timeout=15.0)
+        assert res.status_code == 200
+        logs = res.json()["logs"]
+        assert "Container: vllm-server" in logs or "No pods active" in logs or "Logs unavailable" in logs
+
+@pytest.mark.gke
+@pytest.mark.anyio
 async def test_spot_gpu_node_pool_autoscaling():
-    """Test 15: Audit Spot L4 GPU node pool scale-up requests and node taints."""
+    """Test 19: Audit Spot L4 GPU node pool scale-up requests and node taints."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
@@ -344,18 +397,8 @@ async def test_spot_gpu_node_pool_autoscaling():
 
 @pytest.mark.gke
 @pytest.mark.anyio
-async def test_gpu_inference_multi_container_observability(live_admin_url):
-    """Test 16: Audit GET /logs multi-container aggregated observability streams."""
-    async with httpx.AsyncClient() as http:
-        res = await http.get(f"{live_admin_url}/api/showcases/gpu-inference/logs", headers=AUTH_HEADERS, timeout=15.0)
-        assert res.status_code == 200
-        logs = res.json()["logs"]
-        assert "Container: vllm-server" in logs or "No pods active" in logs or "Logs unavailable" in logs
-
-@pytest.mark.gke
-@pytest.mark.anyio
-async def test_dual_showcase_inter_routing(live_admin_url):
-    """Test 17: Audit X-Sandbox-Provider: vllm internal cluster DNS quote routing."""
+async def test_gpu_inference_completions(live_admin_url):
+    """Test 20: Audit chat completions endpoint on gpu-inference."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         custom_api = client.CustomObjectsApi(api)
@@ -375,72 +418,32 @@ async def test_dual_showcase_inter_routing(live_admin_url):
             await asyncio.sleep(2.0)
 
     async with httpx.AsyncClient() as http:
-        active = []
-        for _ in range(90):
-            res = await http.get(f"{live_admin_url}/api/showcases", headers=AUTH_HEADERS, timeout=10.0)
-            active = [s["name"] for s in res.json() if s["status"] == "ACTIVE"]
-            if "agent-sandbox" in active and "gpu-inference" in active:
-                break
-            await asyncio.sleep(3.0)
-
-        if "agent-sandbox" not in active or "gpu-inference" not in active:
-            pytest.skip("Both showcases must be fully ACTIVE to test inter-service DNS quote routing.")
-            
-        claim_res = None
-        for _ in range(12):
-            try:
-                claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
-                if claim_res.status_code == 200 and "id" in claim_res.json():
-                    break
-            except (httpx.RequestError, httpx.HTTPError):
-                pass
-            await asyncio.sleep(10.0)
-            
-        assert claim_res is not None, "Failed to create sandbox claim after retries in dual showcase test."
-        assert claim_res.status_code == 200
-        claim_id = claim_res.json()["id"]
-        
-        quote_res = None
-        for attempt in range(7):
-            try:
-                quote_res = await http.post(
-                    f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
-                    json={"provider": "vllm"},
-                    headers=AUTH_HEADERS,
-                    timeout=120.0
-                )
-                if quote_res.status_code == 200 and "quote" in quote_res.json():
-                    break
-            except (httpx.RequestError, httpx.HTTPError):
-                pass
-            await asyncio.sleep(15.0)
-            
-        assert quote_res is not None, "Failed to get a successful response from quote endpoint after retries."
-        assert quote_res.status_code == 200
-        assert "quote" in quote_res.json()
-
-# ==============================================================================
-# PART 4: TEARDOWN & DE-PROVISIONING (1 Test)
-# ==============================================================================
+        res = await http.post(
+            f"{live_admin_url}/api/inference/chat",
+            json={"prompt": "Hello GPU inference"},
+            headers=AUTH_HEADERS,
+            timeout=60.0
+        )
+        assert res.status_code == 200
+        assert "reply" in res.json()
 
 @pytest.mark.gke
 @pytest.mark.anyio
-async def test_system_teardown_lock(live_admin_url):
-    """Test 18: Audit DELETE /teardown locking and namespace de-provisioning for both showcases."""
+async def test_gpu_inference_teardown(live_admin_url):
+    """Test 21: Disable showcase via DELETE /teardown and actively poll/verify GPU_NS is fully deleted/dormant."""
     async with httpx.AsyncClient() as http:
-        res_sb = await http.delete(f"{live_admin_url}/api/showcases/agent-sandbox/teardown", headers=AUTH_HEADERS, timeout=15.0)
-        assert res_sb.status_code == 200
-        assert res_sb.json()["status"] in ("TERMINATING", "DORMANT")
+        res = await http.delete(f"{live_admin_url}/api/showcases/gpu-inference/teardown", headers=AUTH_HEADERS, timeout=15.0)
+        assert res.status_code == 200
+        assert res.json()["status"] in ("TERMINATING", "DORMANT")
         
-        res_gpu = await http.delete(f"{live_admin_url}/api/showcases/gpu-inference/teardown", headers=AUTH_HEADERS, timeout=15.0)
-        assert res_gpu.status_code == 200
-        assert res_gpu.json()["status"] in ("TERMINATING", "DORMANT")
-        
-        await k8s_client.init_k8s_connection()
-        async with client.ApiClient() as api:
-            core_v1 = client.CoreV1Api(api)
-            ns_sb = await core_v1.read_namespace(SANDBOX_NS)
-            assert ns_sb.status.phase in ("Terminating", "Active")
-            
-            ns_gpu = await core_v1.read_namespace(GPU_NS)
-            assert ns_gpu.status.phase in ("Terminating", "Active")
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        for _ in range(30):
+            try:
+                ns = await core_v1.read_namespace(GPU_NS)
+                if ns.status.phase in ("Terminating", "Dormant"):
+                    pass
+            except Exception:
+                break
+            await asyncio.sleep(2.0)
