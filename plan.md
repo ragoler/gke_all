@@ -199,13 +199,13 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Rebuild containers (`./scripts/build_and_push.sh --feature inference-gateway` and `--feature admin`) and rollout restart live GKE deployment.
     - `[x]` Verify 100% passing test suite and mark Milestone 19 as completed `[x]` in `plan.md`.
 
-### [ ] Milestone 20: Advanced Client-Side Auth & Gateway RBAC Hardening
+### [x] Milestone 20: Advanced Client-Side Auth & Gateway RBAC Hardening
 *   **Objective**: Address the client-side HTTP 401 failures in standalone playroom JavaScript files by injecting JWT Bearer tokens into REST API fetch requests, and resolve the Kubernetes RBAC 403 Forbidden error during `InferencePool` and `InferenceObjective` CRD deployment by expanding `showcase-admin-sa` permissions in `main-app.yaml`.
 *   **Tasks**:
-    - `[ ]` Update `showcase_admin/frontend/features/agent-sandbox.js` to retrieve `localStorage.getItem("admin_jwt")` and attach `Authorization: Bearer <jwt>` headers to all `fetch()` calls (`/api/sandboxes`, `/api/sandboxes/{id}`, `/message`, `/quote`).
-    - `[ ]` Update `showcase_admin/frontend/features/gpu-inference.js` to attach JWT Bearer headers to `/api/showcases` and `/api/inference/chat` fetch requests.
-    - `[ ]` Update `showcase_admin/frontend/features/inference-gateway.js` to attach JWT Bearer headers to `/api/showcases` and `/api/gateway/request` fetch requests.
-    - `[ ]` Expand `showcase-admin-role` ClusterRole in `infra/main-app.yaml` to include `apiGroups: ["inference.networking.k8s.io", "inference.networking.x-k8s.io"]` with resources `["inferencepools", "inferenceobjectives"]`.
-    - `[ ]` Reapply `infra/main-app.yaml` to the active GKE cluster (`kubectl apply -f infra/main-app.yaml`).
-    - `[ ]` Rebuild Admin container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
-    - `[ ]` Verify 100% passing test suite and mark Milestone 20 as completed `[x]` in `plan.md`.
+    - `[x]` Update `showcase_admin/frontend/features/agent-sandbox.js` to retrieve `localStorage.getItem("admin_jwt")` and attach `Authorization: Bearer <jwt>` headers to all `fetch()` calls (`/api/sandboxes`, `/api/sandboxes/{id}`, `/message`, `/quote`).
+    - `[x]` Update `showcase_admin/frontend/features/gpu-inference.js` to attach JWT Bearer headers to `/api/showcases` and `/api/inference/chat` fetch requests.
+    - `[x]` Update `showcase_admin/frontend/features/inference-gateway.js` to attach JWT Bearer headers to `/api/showcases` and `/api/gateway/request` fetch requests.
+    - `[x]` Expand `showcase-admin-role` ClusterRole in `infra/main-app.yaml` to include `apiGroups: ["inference.networking.k8s.io", "inference.networking.x-k8s.io"]` with resources `["inferencepools", "inferenceobjectives"]`.
+    - `[x]` Reapply `infra/main-app.yaml` to the active GKE cluster (`kubectl apply -f infra/main-app.yaml`).
+    - `[x]` Rebuild Admin container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
+    - `[x]` Verify 100% passing test suite and mark Milestone 20 as completed `[x]` in `plan.md`.
