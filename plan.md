@@ -209,13 +209,13 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Reapply `infra/main-app.yaml` to the active GKE cluster (`kubectl apply -f infra/main-app.yaml`).
     - `[x]` Verify 100% passing test suite and mark Milestone 20 as completed `[x]` in `plan.md`.
 
-### [ ] Milestone 21: User-Centric Testing Alignment & Cache Busting
+### [x] Milestone 21: User-Centric Testing Alignment & Cache Busting
 *   **Objective**: Address persistent browser caching of unauthenticated standalone playroom JavaScript files by updating cache buster query strings (`?v=20260523_auth_fix`), and refactor `test_live_gke.py` to execute user-centric integration testing on default feature namespaces (`gke-showcase-agent-sandbox`, `gke-showcase-gpu-inference`) following a strict sequential enable -> verify logs -> test -> disable -> stabilize lifecycle.
 *   **Tasks**:
     - `[x]` Update `showcase_admin/frontend/features/agent-sandbox/index.html` script src to `/static/features/agent-sandbox.js?v=20260523_auth_fix`.
     - `[x]` Update `showcase_admin/frontend/features/gpu-inference/index.html` script src to `/static/features/gpu-inference.js?v=20260523_auth_fix`.
     - `[x]` Update `showcase_admin/frontend/features/inference-gateway/index.html` script src to `/static/features/inference-gateway.js?v=20260523_auth_fix`.
     - `[x]` Refactor `tests/integration/test_live_gke.py` to remove `TEST_UUID` and use default namespaces (`gke-showcase-agent-sandbox`, `gke-showcase-gpu-inference`). Structure test execution to verify initial dormant state, sequentially enable each feature, verify logs and functionality, disable the feature, and verify cluster stabilization.
-    - `[ ]` Rebuild Admin container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
-    - `[ ]` Execute `.venv/bin/pytest --run-live-gke tests/` confirming 100% clean passing test suite across all 84 tests.
-    - `[ ]` Verify 100% passing test suite and mark Milestone 21 as completed `[x]` in `plan.md`.
+    - `[x]` Rebuild Admin container (`./scripts/build_and_push.sh --feature admin`) and rollout restart live GKE deployment.
+    - `[x]` Execute `.venv/bin/pytest --run-live-gke tests/` confirming 100% clean passing test suite across all 84 tests.
+    - `[x]` Verify 100% passing test suite and mark Milestone 21 as completed `[x]` in `plan.md`.
