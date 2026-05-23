@@ -42,7 +42,11 @@ os.makedirs(frontend_dir, exist_ok=True)
 async def read_root():
     index_path = os.path.join(frontend_dir, 'index.html')
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        response = FileResponse(index_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     raise HTTPException(status_code=404, detail="index.html file not found.")
 
 
@@ -56,21 +60,33 @@ app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 async def serve_sandbox_playroom():
     sandbox_html = os.path.join(frontend_dir, 'features', 'agent-sandbox', 'index.html')
     if os.path.exists(sandbox_html):
-        return FileResponse(sandbox_html)
+        response = FileResponse(sandbox_html)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     raise HTTPException(status_code=404, detail="Sandbox playroom file not found.")
 
 @app.get("/inference/", response_class=HTMLResponse)
 async def serve_inference_playroom():
     inference_html = os.path.join(frontend_dir, 'features', 'gpu-inference', 'index.html')
     if os.path.exists(inference_html):
-        return FileResponse(inference_html)
+        response = FileResponse(inference_html)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     raise HTTPException(status_code=404, detail="Inference playroom file not found.")
 
 @app.get("/gateway/", response_class=HTMLResponse)
 async def serve_inference_gateway_playroom():
     gateway_html = os.path.join(frontend_dir, 'features', 'inference-gateway', 'index.html')
     if os.path.exists(gateway_html):
-        return FileResponse(gateway_html)
+        response = FileResponse(gateway_html)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     raise HTTPException(status_code=404, detail="Inference Gateway playroom file not found.")
 
 # Available Features Metadata
