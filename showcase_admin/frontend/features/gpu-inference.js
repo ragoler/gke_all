@@ -9,10 +9,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnSendQuery = document.getElementById("btn-send-query");
     const metricModelName = document.getElementById("metric-model-name");
 
+    async function fetchWithAuth(url, options = {}) {
+        const jwt = localStorage.getItem("admin_jwt");
+        const headers = { ...options.headers };
+        if (jwt) {
+            headers["Authorization"] = `Bearer ${jwt}`;
+        }
+        return fetch(url, { ...options, headers });
+    }
+
     // Fetch active model info
     async function fetchModelInfo() {
         try {
-            const response = await fetch("/api/showcases");
+            const response = await fetchWithAuth("/api/showcases");
             if (response.ok) {
                 const showcases = await response.json();
                 // Check if we have custom model metadata or custom GCS buckets
@@ -39,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnSendQuery.disabled = true;
 
         try {
-            const response = await fetch("/api/inference/chat", {
+            const response = await fetchWithAuth("/api/inference/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: text })

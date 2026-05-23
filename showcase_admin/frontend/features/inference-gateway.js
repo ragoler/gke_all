@@ -9,9 +9,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnSendQuery = document.getElementById("btn-send-query");
     const metricGatewayIp = document.getElementById("metric-gateway-ip");
 
+    async function fetchWithAuth(url, options = {}) {
+        const jwt = localStorage.getItem("admin_jwt");
+        const headers = { ...options.headers };
+        if (jwt) {
+            headers["Authorization"] = `Bearer ${jwt}`;
+        }
+        return fetch(url, { ...options, headers });
+    }
+
     async function fetchGatewayInfo() {
         try {
-            const response = await fetch("/api/showcases");
+            const response = await fetchWithAuth("/api/showcases");
             if (response.ok) {
                 const showcases = await response.json();
                 const gatewayMeta = showcases.find(s => s.name === "inference-gateway");
@@ -36,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnSendQuery.disabled = true;
 
         try {
-            const response = await fetch("/api/gateway/request", {
+            const response = await fetchWithAuth("/api/gateway/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: text, priority: priority })

@@ -11,6 +11,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
+    async function fetchWithAuth(url, options = {}) {
+        const jwt = localStorage.getItem("admin_jwt");
+        const headers = { ...options.headers };
+        if (jwt) {
+            headers["Authorization"] = `Bearer ${jwt}`;
+        }
+        return fetch(url, { ...options, headers });
+    }
+
     function renderChatHistory(id) {
         if (!chatHistories[id] || chatHistories[id].length === 0) {
             return `<div class="chat-msg ai">[SYSTEM] Isolated secure terminal workspace ready. Send dynamic code/queries instantly.</div>`;
@@ -26,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Fetch active claims from Admin backend
     async function fetchClaims() {
         try {
-            const response = await fetch("/api/sandboxes");
+            const response = await fetchWithAuth("/api/sandboxes");
             if (!response.ok) throw new Error("Failed to load claimed sandboxes.");
             const data = await response.json();
             activeClaims = data;
@@ -93,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnClaimSandbox.disabled = true;
         
         try {
-            const response = await fetch("/api/sandboxes", {
+            const response = await fetchWithAuth("/api/sandboxes", {
                 method: "POST"
             });
             if (!response.ok) throw new Error("Failed to allocate sandbox claim.");
@@ -111,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.deleteClaim = async (id) => {
         
         try {
-            const response = await fetch(`/api/sandboxes/${id}`, {
+            const response = await fetchWithAuth(`/api/sandboxes/${id}`, {
                 method: "DELETE"
             });
             if (!response.ok) throw new Error("Failed to release sandbox claim.");
@@ -135,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
-            const response = await fetch(`/api/sandboxes/${id}/message`, {
+            const response = await fetchWithAuth(`/api/sandboxes/${id}/message`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: text, provider: provider })
@@ -156,7 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
-            const response = await fetch(`/api/sandboxes/${id}/quote`, {
+            const response = await fetchWithAuth(`/api/sandboxes/${id}/quote`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ provider: provider })
