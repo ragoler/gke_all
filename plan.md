@@ -189,12 +189,12 @@ Yes! We support multi-agent orchestration. The execution of this plan is designe
     - `[x]` Author `/tests/integration/test_inference_gateway_showcase.py` verifying manifest expansion and CRD handling under mock state.
     - `[x]` Execute automated test suite and verify 100% passing status before completion.
 
-### [ ] Milestone 19: Comprehensive Production Bug Fixes & Resilience Hardening
+### [x] Milestone 19: Comprehensive Production Bug Fixes & Resilience Hardening
 *   **Objective**: Address the 4 critical production issues discovered during live GKE cluster validation, hardening the Admin Hub and showcase feature manifests against RBAC restrictions, async provisioning latencies, and routing dependencies.
 *   **Tasks**:
-    - `[ ]` Remove `dependencies=api_dependencies` from playroom UI serving routes (`/sandbox/`, `/inference/`, `/gateway/`) in `showcase_admin/app/main.py` to allow unauthenticated initial HTML page loads.
-    - `[ ]` Update `get_cluster_stats()` in `showcase_admin/app/k8s_client.py` to catch `list_node()` 403 RBAC exceptions gracefully, ensuring namespace, pod, and accelerator telemetry aggregation continues flawlessly.
-    - `[ ]` Update `get_showcase_logs()` in `showcase_admin/app/k8s_client.py` to catch `read_namespaced_pod_log()` 400 BadRequest exceptions during `ContainerCreating` / `Pending` phases, returning a human-readable provisioning status message.
-    - `[ ]` Correct `features/inference-gateway/infra/deployment.yaml` image path to include `${REGION}-docker.pkg.dev/${PROJECT_NAME}/` for Artifact Registry resolution.
-    - `[ ]` Rebuild containers (`./scripts/build_and_push.sh --feature inference-gateway` and `--feature admin`) and rollout restart live GKE deployment.
-    - `[ ]` Verify 100% passing test suite and mark Milestone 19 as completed `[x]` in `plan.md`.
+    - `[x]` Remove `dependencies=api_dependencies` from playroom UI serving routes (`/sandbox/`, `/inference/`, `/gateway/`) in `showcase_admin/app/main.py` to allow unauthenticated initial HTML page loads.
+    - `[x]` Update `get_cluster_stats()` in `showcase_admin/app/k8s_client.py` to catch `list_node()` 403 RBAC exceptions gracefully, ensuring namespace, pod, and accelerator telemetry aggregation continues flawlessly.
+    - `[x]` Update `get_showcase_logs()` in `showcase_admin/app/k8s_client.py` to catch `read_namespaced_pod_log()` 400 BadRequest exceptions during `ContainerCreating` / `Pending` phases, returning a human-readable provisioning status message.
+    - `[x]` Correct `features/inference-gateway/infra/deployment.yaml` image path to include `${REGION}-docker.pkg.dev/${PROJECT_NAME}/` for Artifact Registry resolution.
+    - `[x]` Rebuild containers (`./scripts/build_and_push.sh --feature inference-gateway` and `--feature admin`) and rollout restart live GKE deployment.
+    - `[x]` Verify 100% passing test suite and mark Milestone 19 as completed `[x]` in `plan.md`.
