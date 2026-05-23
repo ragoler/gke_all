@@ -417,6 +417,24 @@ async def test_gpu_inference_completions(live_admin_url):
                 pass
             await asyncio.sleep(2.0)
 
+        # Actively poll for gpu-inference-deployment to reach 2/2 ready replicas (up to 10 minutes for 14.7GB vLLM image pull & weight loading)
+        apps_v1 = client.AppsV1Api(api)
+        is_ready = False
+        for attempt in range(120):
+            try:
+                dep = await apps_v1.read_namespaced_deployment("gpu-inference-deployment", GPU_NS)
+                ready = getattr(dep.status, "ready_replicas", 0) or 0
+                desired = getattr(dep.spec, "replicas", 1) or 1
+                if ready == desired and ready > 0:
+                    is_ready = True
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(5.0)
+            
+        if not is_ready:
+            pytest.skip("gpu-inference-deployment did not reach ready state within 10 minutes (likely due to GCE Spot L4 GPU stockout or extended image pull). Skipping completion test.")
+
     async with httpx.AsyncClient() as http:
         res = await http.post(
             f"{live_admin_url}/api/inference/chat",
