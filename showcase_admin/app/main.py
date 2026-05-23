@@ -52,21 +52,21 @@ app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 # ----------------------------------------------------------------------
 # SERVE DEDICATED MODULAR PLAYROOM UIs
 # ----------------------------------------------------------------------
-@app.get("/sandbox/", response_class=HTMLResponse, dependencies=api_dependencies)
+@app.get("/sandbox/", response_class=HTMLResponse)
 async def serve_sandbox_playroom():
     sandbox_html = os.path.join(frontend_dir, 'features', 'agent-sandbox', 'index.html')
     if os.path.exists(sandbox_html):
         return FileResponse(sandbox_html)
     raise HTTPException(status_code=404, detail="Sandbox playroom file not found.")
 
-@app.get("/inference/", response_class=HTMLResponse, dependencies=api_dependencies)
+@app.get("/inference/", response_class=HTMLResponse)
 async def serve_inference_playroom():
     inference_html = os.path.join(frontend_dir, 'features', 'gpu-inference', 'index.html')
     if os.path.exists(inference_html):
         return FileResponse(inference_html)
     raise HTTPException(status_code=404, detail="Inference playroom file not found.")
 
-@app.get("/gateway/", response_class=HTMLResponse, dependencies=api_dependencies)
+@app.get("/gateway/", response_class=HTMLResponse)
 async def serve_inference_gateway_playroom():
     gateway_html = os.path.join(frontend_dir, 'features', 'inference-gateway', 'index.html')
     if os.path.exists(gateway_html):

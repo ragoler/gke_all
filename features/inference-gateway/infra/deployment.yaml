@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: inference-gateway-app
-        image: ${ARTIFACT_REGISTRY_REPO}/inference-gateway-playroom:latest
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/inference-gateway-playroom:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

@@ -366,6 +366,11 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
                                 tail_lines=50
                             )
                             aggregated_logs.append(f"{header}\n{c_logs.strip()}\n")
+                        except client.exceptions.ApiException as log_err:
+                            if log_err.status == 400 or "BadRequest" in str(log_err):
+                                aggregated_logs.append(f"{header}\n[STATUS: CONTAINER PROVISIONING] The container is currently pulling image or initializing volume mounts (e.g. 14GB vLLM weights). This process may take 4 to 6 minutes. Please check back shortly.\n")
+                            else:
+                                aggregated_logs.append(f"{header}\n[Logs unavailable: {log_err}]\n")
                         except Exception as log_err:
                             aggregated_logs.append(f"{header}\n[Logs unavailable: {log_err}]\n")
                 
@@ -643,19 +648,27 @@ async def get_cluster_stats() -> dict:
         
         try:
             # 1. Nodes
-            nodes = await core_v1.list_node()
-            total_nodes = len(nodes.items)
-            ready_nodes = 0
-            gvisor_nodes = 0
-            for node in nodes.items:
-                if node.status and node.status.conditions:
-                    for cond in node.status.conditions:
-                        if cond.type == "Ready" and cond.status == "True":
-                            ready_nodes += 1
-                            break
-                labels = (node.metadata and node.metadata.labels) or {}
-                if labels.get("sandbox.gke.io/runtime") == "gvisor":
-                    gvisor_nodes += 1
+            try:
+                nodes = await core_v1.list_node()
+                total_nodes = len(nodes.items)
+                ready_nodes = 0
+                gvisor_nodes = 0
+                for node in nodes.items:
+                    if node.status and node.status.conditions:
+                        for cond in node.status.conditions:
+                            if cond.type == "Ready" and cond.status == "True":
+                                ready_nodes += 1
+                                break
+                    labels = (node.metadata and node.metadata.labels) or {}
+                    if labels.get("sandbox.gke.io/runtime") == "gvisor":
+                        gvisor_nodes += 1
+            except client.exceptions.ApiException as e:
+                if e.status == 403 or "Forbidden" in str(e):
+                    total_nodes = 0
+                    ready_nodes = 0
+                    gvisor_nodes = 0
+                else:
+                    raise e
 
             # 2. Namespaces
             namespaces = await core_v1.list_namespace()
