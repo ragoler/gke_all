@@ -35,7 +35,7 @@ rules:
   resources: ["inferencepools", "inferenceobjectives"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["node.gke.io"]
-  resources: ["computeclasses"]
+  resources: ["computeclasses", "computeclasss"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
