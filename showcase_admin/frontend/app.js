@@ -375,7 +375,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (closeDetailBtn) {
         closeDetailBtn.addEventListener("click", () => {
-            if (detailModal) detailModal.style.display = "none";
+            if (detailModal) {
+                detailModal.style.display = "none";
+                detailModal.classList.remove("open");
+            }
         });
     }
 
@@ -425,7 +428,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 }
             }
-            if (detailModal) detailModal.style.display = "flex";
+            if (detailModal) {
+                detailModal.style.display = "flex";
+                detailModal.classList.add("open");
+            }
         });
     });
 
