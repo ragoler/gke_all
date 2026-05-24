@@ -118,7 +118,7 @@ gcloud container node-pools create showcase-gvisor-pool \
     --cluster="$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" \
     --machine-type="e2-standard-2" \
     --sandbox="type=gvisor" \
-    --workload-metadata=GCE_METADATA \
+    --workload-metadata=GKE_METADATA \
     --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
     --quiet || echo "gVisor node pool already exists or skipped."
 
