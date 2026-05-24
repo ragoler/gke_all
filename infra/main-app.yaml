@@ -34,6 +34,9 @@ rules:
 - apiGroups: ["inference.networking.k8s.io", "inference.networking.x-k8s.io"]
   resources: ["inferencepools", "inferenceobjectives"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["node.gke.io"]
+  resources: ["computeclasses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
