@@ -10,8 +10,8 @@ spec:
         app: demo-agent
     spec:
       runtimeClassName: gvisor
-      serviceAccountName: default # WIF is bound dynamically to the default account or dynamically-configured SA
-      automountServiceAccountToken: true
+      serviceAccountName: default # Inherits GKE node service account when automount is false
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
       nodeSelector:
@@ -36,6 +36,8 @@ spec:
           value: "${REGION}"
         - name: GOOGLE_GENAI_USE_VERTEXAI
           value: "${GOOGLE_GENAI_USE_VERTEXAI}"
+        - name: GCE_METADATA_HOST
+          value: "169.254.169.254"
         # Optional variables for inter-showcase local vLLM routing
         - name: OPENAI_API_BASE
           value: "${OPENAI_API_BASE}"
