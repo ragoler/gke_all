@@ -1,0 +1,45 @@
+# Tier 1: G2 Spot (NVIDIA L4)
+apiVersion: node.gke.io/v1
+kind: ComputeClass
+metadata:
+  name: g2-spot
+spec:
+  machineFamily: g2
+  machineType: g2-standard-8
+  spot: true
+  accelerator:
+    type: nvidia-l4
+    count: 1
+---
+# Tier 2: G4 Spot (NVIDIA T4 / L4G)
+apiVersion: node.gke.io/v1
+kind: ComputeClass
+metadata:
+  name: g4-spot
+spec:
+  machineFamily: g4
+  machineType: g4-standard-8
+  spot: true
+---
+# Tier 3: G2 On-Demand (NVIDIA L4)
+apiVersion: node.gke.io/v1
+kind: ComputeClass
+metadata:
+  name: g2-ondemand
+spec:
+  machineFamily: g2
+  machineType: g2-standard-8
+  spot: false
+  accelerator:
+    type: nvidia-l4
+    count: 1
+---
+# Tier 4: G4 On-Demand (NVIDIA T4 / L4G)
+apiVersion: node.gke.io/v1
+kind: ComputeClass
+metadata:
+  name: g4-ondemand
+spec:
+  machineFamily: g4
+  machineType: g4-standard-8
+  spot: false

@@ -13,10 +13,37 @@ spec:
       labels:
         app: gpu-inference
     spec:
-      nodeSelector:
-        cloud.google.com/gke-spot: "true"
-        cloud.google.com/gke-gpu-driver-version: default
-        cloud.google.com/gke-accelerator: nvidia-l4
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          # Priority 1: G2 Spot L4 (Weight 100)
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g2-spot"]
+          # Priority 2: G4 Spot (Weight 75)
+          - weight: 75
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g4-spot"]
+          # Priority 3: G2 On-Demand L4 (Weight 50)
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g2-ondemand"]
+          # Priority 4: G4 On-Demand (Weight 25)
+          - weight: 25
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g4-ondemand"]
       tolerations:
       - key: "nvidia.com/gpu"
         operator: "Exists"

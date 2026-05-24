@@ -354,6 +354,29 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
                 for pod in pods.items:
                     pod_name = pod.metadata.name
                     phase = pod.status.phase
+                    
+                    if phase == "Pending":
+                        stockout_msg = None
+                        try:
+                            events = await core_v1.list_namespaced_event(namespace)
+                            for event in events.items:
+                                if getattr(event.involved_object, "name", "") == pod_name:
+                                    if event.reason in ("FailedScaleUp", "FailedScheduling") and "GCE out of resources" in str(event.message):
+                                        stockout_msg = event.message
+                                        break
+                        except Exception:
+                            pass
+                        if stockout_msg:
+                            aggregated_logs.append(
+                                f"=== [{pod_name} (Status: Pending - GCE Hardware Stockout)] ===\n"
+                                f"⚠️ [STOCKOUT DETECTED]: Google Compute Engine is currently experiencing a physical hardware stockout for this instance type in region {config.REGION}.\n"
+                                f"Diagnostic Event: {stockout_msg}\n"
+                                f"System Action: GKE Cluster Autoscaler is actively maintaining this allocation request in exponential backoff and will automatically spin up the GPU node as soon as physical capacity frees up in the zone.\n"
+                            )
+                        else:
+                            aggregated_logs.append(f"=== [{pod_name} (Status: Pending)] ===\n[Pod is currently waiting to be scheduled or initializing node volumes...]\n")
+                        continue
+
                     container_names = [c.name for c in pod.spec.containers]
                     
                     for c_name in container_names:
