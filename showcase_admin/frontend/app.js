@@ -365,6 +365,69 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabBtns = document.querySelectorAll(".tab-btn");
     const tabViews = document.querySelectorAll(".tab-view");
     let telemetryInterval = null;
+    let latestTelemetryData = null;
+
+    const detailModal = document.getElementById("detail-modal");
+    const detailModalTitle = document.getElementById("detail-modal-title");
+    const detailTableHead = document.getElementById("detail-table-head");
+    const detailTableBody = document.getElementById("detail-table-body");
+    const closeDetailBtn = document.getElementById("close-detail-btn");
+
+    if (closeDetailBtn) {
+        closeDetailBtn.addEventListener("click", () => {
+            if (detailModal) detailModal.style.display = "none";
+        });
+    }
+
+    const telemetryCards = document.querySelectorAll(".telemetry-card.clickable");
+    telemetryCards.forEach(card => {
+        card.addEventListener("click", () => {
+            const detailType = card.getAttribute("data-detail");
+            if (!detailType || !latestTelemetryData) return;
+
+            detailTableHead.innerHTML = "";
+            detailTableBody.innerHTML = "";
+
+            if (detailType === "nodes") {
+                detailModalTitle.textContent = "Compute Nodes Diagnostics";
+                detailTableHead.innerHTML = `<th>Node Name</th><th>Status</th><th>Kubelet Version</th><th>Allocatable CPU</th><th>Allocatable Memory</th>`;
+                const list = latestTelemetryData.nodes.details || [];
+                if (list.length === 0) {
+                    detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No compute nodes found or RBAC restricted.</td></tr>`;
+                } else {
+                    list.forEach(n => {
+                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'ready' ? 'active' : 'error'}">${n.status}</span></td><td>${n.version}</td><td>${n.cpu}</td><td>${n.memory}</td></tr>`;
+                    });
+                }
+            } else if (detailType === "namespaces") {
+                detailModalTitle.textContent = "Active Kubernetes Namespaces";
+                detailTableHead.innerHTML = `<th>Namespace</th><th>Status</th><th>Elapsed Age</th>`;
+                const list = latestTelemetryData.namespaces.details || [];
+                if (list.length === 0) {
+                    detailTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No namespaces found.</td></tr>`;
+                } else {
+                    list.forEach(n => {
+                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'active' ? 'active' : 'dormant'}">${n.status}</span></td><td>${n.age}</td></tr>`;
+                    });
+                }
+            } else if (detailType === "pods") {
+                detailModalTitle.textContent = "Cluster Pod Workloads";
+                detailTableHead.innerHTML = `<th>Pod Name</th><th>Namespace</th><th>Status</th><th>Assigned Node</th><th>Pod IP</th>`;
+                const list = latestTelemetryData.pods.details || [];
+                if (list.length === 0) {
+                    detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No pod workloads active.</td></tr>`;
+                } else {
+                    list.forEach(p => {
+                        let badgeClass = "dormant";
+                        if (p.status.toLowerCase() === "running") badgeClass = "active";
+                        else if (p.status.toLowerCase() === "failed") badgeClass = "error";
+                        detailTableBody.innerHTML += `<tr><td><strong>${p.name}</strong></td><td>${p.namespace}</td><td><span class="status-badge ${badgeClass}">${p.status}</span></td><td>${p.node}</td><td>${p.ip}</td></tr>`;
+                    });
+                }
+            }
+            if (detailModal) detailModal.style.display = "flex";
+        });
+    });
 
     tabBtns.forEach(btn => {
         btn.addEventListener("click", () => {
@@ -399,6 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetchWithAuth("/api/stats");
             if (!res.ok) return;
             const data = await res.json();
+            latestTelemetryData = data;
 
             const nodesTotal = document.getElementById("telemetry-nodes-total");
             const nodesReady = document.getElementById("telemetry-nodes-ready");

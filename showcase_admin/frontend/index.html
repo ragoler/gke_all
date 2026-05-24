@@ -66,17 +66,17 @@
                 <span class="telemetry-status">Updating every 5s</span>
             </div>
             <div class="telemetry-grid" id="telemetry-grid">
-                <div class="telemetry-card">
+                <div class="telemetry-card clickable" data-detail="nodes">
                     <span class="telemetry-label">Compute Nodes</span>
                     <span class="telemetry-val" id="telemetry-nodes-total">-</span>
                     <span class="telemetry-sub" id="telemetry-nodes-ready">Ready: -</span>
                 </div>
-                <div class="telemetry-card">
+                <div class="telemetry-card clickable" data-detail="namespaces">
                     <span class="telemetry-label">Active Namespaces</span>
                     <span class="telemetry-val" id="telemetry-namespaces">-</span>
                     <span class="telemetry-sub">GKE Isolated Namespaces</span>
                 </div>
-                <div class="telemetry-card">
+                <div class="telemetry-card clickable" data-detail="pods">
                     <span class="telemetry-label">Pod Workloads</span>
                     <span class="telemetry-val" id="telemetry-pods-total">-</span>
                     <span class="telemetry-sub" id="telemetry-pods-details">Running: - | Pending: - | Failed: -</span>
@@ -93,6 +93,24 @@
                 </div>
             </div>
         </section>
+    </div>
+
+    <!-- Telemetry Detail Modal Overlay -->
+    <div class="modal-overlay" id="detail-modal" style="display: none;">
+        <div class="console-panel" style="max-width: 900px; width: 90%;">
+            <div class="console-header">
+                <span class="console-title" id="detail-modal-title">Cluster Telemetry Details</span>
+                <button class="close-console-btn" id="close-detail-btn">&times;</button>
+            </div>
+            <div class="console-body" style="padding: 1rem; overflow-x: auto; background: var(--bg-card); max-height: 60vh;">
+                <table class="telemetry-table" id="detail-table">
+                    <thead>
+                        <tr id="detail-table-head"></tr>
+                    </thead>
+                    <tbody id="detail-table-body"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Console Modal Overlay -->

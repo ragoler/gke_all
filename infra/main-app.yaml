@@ -16,7 +16,7 @@ metadata:
 rules:
 # Full namespace and resource creation capability for dynamically installing showcase features
 - apiGroups: [""]
-  resources: ["namespaces", "services", "serviceaccounts", "secrets", "configmaps", "pods", "pods/log"]
+  resources: ["namespaces", "services", "serviceaccounts", "secrets", "configmaps", "pods", "pods/log", "nodes"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["apps"]
   resources: ["deployments"]

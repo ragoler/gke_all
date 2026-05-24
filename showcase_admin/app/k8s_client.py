@@ -648,20 +648,36 @@ async def get_cluster_stats() -> dict:
         
         try:
             # 1. Nodes
+            node_details = []
             try:
                 nodes = await core_v1.list_node()
                 total_nodes = len(nodes.items)
                 ready_nodes = 0
                 gvisor_nodes = 0
                 for node in nodes.items:
+                    name = getattr(node.metadata, "name", "Unknown") if node.metadata else "Unknown"
+                    status = "NotReady"
                     if node.status and node.status.conditions:
                         for cond in node.status.conditions:
                             if cond.type == "Ready" and cond.status == "True":
                                 ready_nodes += 1
+                                status = "Ready"
                                 break
                     labels = (node.metadata and node.metadata.labels) or {}
                     if labels.get("sandbox.gke.io/runtime") == "gvisor":
                         gvisor_nodes += 1
+                    node_info = getattr(node.status, "node_info", None) if node.status else None
+                    kubelet_ver = getattr(node_info, "kubelet_version", "N/A") if node_info else "N/A"
+                    allocatable = getattr(node.status, "allocatable", {}) if node.status else {}
+                    cpu = allocatable.get("cpu", "N/A")
+                    mem = allocatable.get("memory", "N/A")
+                    node_details.append({
+                        "name": name,
+                        "status": status,
+                        "version": kubelet_ver,
+                        "cpu": cpu,
+                        "memory": mem
+                    })
             except client.exceptions.ApiException as e:
                 if e.status == 403 or "Forbidden" in str(e):
                     total_nodes = 0
@@ -673,6 +689,29 @@ async def get_cluster_stats() -> dict:
             # 2. Namespaces
             namespaces = await core_v1.list_namespace()
             total_namespaces = len(namespaces.items)
+            namespace_details = []
+            for ns in namespaces.items:
+                name = getattr(ns.metadata, "name", "Unknown") if ns.metadata else "Unknown"
+                phase = getattr(ns.status, "phase", "Unknown") if ns.status else "Unknown"
+                creation = getattr(ns.metadata, "creation_timestamp", None) if ns.metadata else None
+                age = "N/A"
+                if creation:
+                    try:
+                        diff = datetime.now(timezone.utc) - creation
+                        total_s = int(diff.total_seconds())
+                        m, s = divmod(total_s, 60)
+                        h, m = divmod(m, 60)
+                        d, h = divmod(h, 24)
+                        if d > 0: age = f"{d}d {h}h"
+                        elif h > 0: age = f"{h}h {m}m"
+                        else: age = f"{m}m {s}s"
+                    except Exception:
+                        pass
+                namespace_details.append({
+                    "name": name,
+                    "status": phase,
+                    "age": age
+                })
 
             # 3. Pods and Accelerators
             pods = await core_v1.list_pod_for_all_namespaces()
@@ -682,9 +721,22 @@ async def get_cluster_stats() -> dict:
             failed_pods = 0
             nvidia_l4_count = 0
             gvisor_pods = 0
+            pod_details = []
 
             for pod in pods.items:
+                name = getattr(pod.metadata, "name", "Unknown") if pod.metadata else "Unknown"
+                ns = getattr(pod.metadata, "namespace", "Unknown") if pod.metadata else "Unknown"
                 phase = getattr(pod.status, "phase", "Unknown") if pod.status else "Unknown"
+                node = getattr(pod.spec, "node_name", "N/A") if pod.spec else "N/A"
+                ip = getattr(pod.status, "pod_ip", "N/A") if pod.status else "N/A"
+                pod_details.append({
+                    "name": name,
+                    "namespace": ns,
+                    "status": phase,
+                    "node": node,
+                    "ip": ip
+                })
+
                 if phase == "Running":
                     running_pods += 1
                 elif phase == "Pending":
@@ -710,16 +762,19 @@ async def get_cluster_stats() -> dict:
                 "mode": "REAL",
                 "nodes": {
                     "total": total_nodes,
-                    "ready": ready_nodes
+                    "ready": ready_nodes,
+                    "details": node_details
                 },
                 "namespaces": {
-                    "total": total_namespaces
+                    "total": total_namespaces,
+                    "details": namespace_details
                 },
                 "pods": {
                     "total": total_pods,
                     "running": running_pods,
                     "pending": pending_pods,
-                    "failed": failed_pods
+                    "failed": failed_pods,
+                    "details": pod_details
                 },
                 "accelerators": {
                     "nvidia_l4": nvidia_l4_count,
