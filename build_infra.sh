@@ -137,7 +137,7 @@ PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectN
 # Bind service accounts dynamically to Vertex AI user role
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --role="roles/aiplatform.user" \
-    --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${PROJECT_ID}.svc.id.goog/subject/ns/gke-showcase-agent-sandbox/sa/default" \
+    --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${PROJECT_ID}.svc.id.goog/*" \
     --condition=None || echo "WIF binding mapped or failed, continuing..."
 
 # Grant GKE nodes read access to Artifact Registry in the same project
