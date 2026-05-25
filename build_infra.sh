@@ -85,6 +85,17 @@ for img in showcase-admin agent-sandbox-demo agent-sandbox-router gpu-inference-
 done
 echo "Pre-flight image validation passed successfully."
 
+# Pre-flight validation: ensure proxy-only subnet exists in region for Regional Gateway API
+echo "Verifying and provisioning proxy-only subnet in region $REGION for Regional Gateway API..."
+gcloud compute networks subnets create gke-showcase-proxy-subnet \
+    --purpose=REGIONAL_MANAGED_PROXY \
+    --role=ACTIVE \
+    --region="$REGION" \
+    --network=default \
+    --range=10.200.0.0/23 \
+    --project="$PROJECT_ID" \
+    --quiet || echo "Proxy-only subnet already exists or active in region."
+
 # Base cluster creation
 if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
   echo "Cluster $CLUSTER_NAME already exists."
