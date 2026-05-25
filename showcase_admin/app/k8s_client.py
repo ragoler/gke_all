@@ -126,7 +126,7 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                     elif kind == "InferenceObjective":
                         plural = "inferenceobjectives"
                     elif kind == "ComputeClass":
-                        plural = "computeclasss"
+                        plural = "computeclasses"
                         
                     if kind == "ComputeClass":
                         await custom_api.create_cluster_custom_object(
