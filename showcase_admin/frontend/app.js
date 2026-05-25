@@ -382,58 +382,81 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const modalTableFilter = document.getElementById("modal-table-filter");
-    if (modalTableFilter) {
-        modalTableFilter.addEventListener("input", (e) => {
-            const filterText = e.target.value.toLowerCase();
-            const rows = detailTableBody.querySelectorAll("tr");
-            rows.forEach(row => {
-                if (row.textContent.toLowerCase().includes(filterText)) {
-                    row.style.display = "";
-                } else {
-                    row.style.display = "none";
-                }
-            });
-        });
-    }
+    // Google Sheets Style Column Header Dropdown Sorting
+    const columnFilterDropdown = document.getElementById("column-filter-dropdown");
+    let activeColumnHeader = null;
+    let activeColumnIndex = -1;
 
-    if (detailTableHead) {
+    if (detailTableHead && columnFilterDropdown) {
         detailTableHead.addEventListener("click", (e) => {
-            const th = e.target.closest("th");
+            const filterIcon = e.target.closest(".th-filter-icon");
+            if (!filterIcon) return;
+            e.stopPropagation();
+
+            const th = filterIcon.closest("th");
             if (!th) return;
-            
-            const thIndex = Array.from(th.parentNode.children).indexOf(th);
-            const isAscending = th.classList.contains("sort-asc");
-            
-            Array.from(th.parentNode.children).forEach(header => {
-                header.classList.remove("sort-asc", "sort-desc");
-                header.textContent = header.textContent.replace(" ▲", "").replace(" ▼", "");
-            });
-            
-            if (isAscending) {
-                th.classList.add("sort-desc");
-                th.textContent += " ▼";
-            } else {
-                th.classList.add("sort-asc");
-                th.textContent += " ▲";
+
+            activeColumnHeader = th;
+            activeColumnIndex = Array.from(th.parentNode.children).indexOf(th);
+
+            const thRect = th.getBoundingClientRect();
+            const modalBody = th.closest(".console-body");
+            const bodyRect = modalBody.getBoundingClientRect();
+
+            columnFilterDropdown.style.top = `${thRect.bottom - bodyRect.top + modalBody.scrollTop}px`;
+            columnFilterDropdown.style.left = `${thRect.left - bodyRect.left + modalBody.scrollLeft}px`;
+            columnFilterDropdown.style.display = "block";
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!columnFilterDropdown.contains(e.target) && !e.target.closest(".th-filter-icon")) {
+                columnFilterDropdown.style.display = "none";
             }
-            
+        });
+
+        const sortAscBtn = document.getElementById("sort-asc-btn");
+        const sortDescBtn = document.getElementById("sort-desc-btn");
+
+        if (sortAscBtn) {
+            sortAscBtn.addEventListener("click", () => {
+                if (activeColumnIndex === -1) return;
+                sortTable(activeColumnIndex, true);
+                columnFilterDropdown.style.display = "none";
+            });
+        }
+
+        if (sortDescBtn) {
+            sortDescBtn.addEventListener("click", () => {
+                if (activeColumnIndex === -1) return;
+                sortTable(activeColumnIndex, false);
+                columnFilterDropdown.style.display = "none";
+            });
+        }
+
+        function sortTable(thIndex, isAscending) {
+            Array.from(detailTableHead.children).forEach(header => {
+                const icon = header.querySelector(".th-filter-icon");
+                if (icon) icon.textContent = "≡";
+            });
+            const currentIcon = activeColumnHeader.querySelector(".th-filter-icon");
+            if (currentIcon) currentIcon.textContent = isAscending ? "▲" : "▼";
+
             const rows = Array.from(detailTableBody.querySelectorAll("tr"));
             rows.sort((a, b) => {
                 const aText = a.children[thIndex] ? a.children[thIndex].textContent.trim() : "";
                 const bText = b.children[thIndex] ? b.children[thIndex].textContent.trim() : "";
-                
+
                 const aNum = parseFloat(aText);
                 const bNum = parseFloat(bText);
                 if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return isAscending ? bNum - aNum : aNum - bNum;
+                    return isAscending ? aNum - bNum : bNum - aNum;
                 }
-                return isAscending ? bText.localeCompare(aText) : aText.localeCompare(bText);
+                return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
-            
+
             detailTableBody.innerHTML = "";
             rows.forEach(row => detailTableBody.appendChild(row));
-        });
+        }
     }
 
     const telemetryCards = document.querySelectorAll(".telemetry-card.clickable");
@@ -444,11 +467,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             detailTableHead.innerHTML = "";
             detailTableBody.innerHTML = "";
-            if (modalTableFilter) modalTableFilter.value = "";
+            if (columnFilterDropdown) columnFilterDropdown.style.display = "none";
 
             if (detailType === "nodes") {
                 detailModalTitle.textContent = "Compute Nodes Diagnostics";
-                detailTableHead.innerHTML = `<th style="cursor: pointer;">Node Name</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Kubelet Version</th><th style="cursor: pointer;">Allocatable CPU</th><th style="cursor: pointer;">Allocatable Memory</th><th style="cursor: pointer;">Active Pods</th>`;
+                detailTableHead.innerHTML = `<th><div class="th-filter-container"><span>Node Name</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Status</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Kubelet Version</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Allocatable CPU</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Allocatable Memory</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Active Pods</span><span class="th-filter-icon">≡</span></div></th>`;
                 const list = latestTelemetryData.nodes.details || [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No compute nodes found or RBAC restricted.</td></tr>`;
@@ -460,7 +483,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             } else if (detailType === "namespaces") {
                 detailModalTitle.textContent = "Active Kubernetes Namespaces";
-                detailTableHead.innerHTML = `<th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Elapsed Age</th><th style="cursor: pointer;">Active Pods</th>`;
+                detailTableHead.innerHTML = `<th><div class="th-filter-container"><span>Namespace</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Status</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Elapsed Age</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Active Pods</span><span class="th-filter-icon">≡</span></div></th>`;
                 const list = latestTelemetryData.namespaces.details || [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No namespaces found.</td></tr>`;
@@ -472,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             } else if (detailType === "pods") {
                 detailModalTitle.textContent = "Cluster Pod Workloads";
-                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Pod IP</th>`;
+                detailTableHead.innerHTML = `<th><div class="th-filter-container"><span>Pod Name</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Namespace</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Status</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Assigned Node</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Pod IP</span><span class="th-filter-icon">≡</span></div></th>`;
                 const list = latestTelemetryData.pods.details || [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No pod workloads active.</td></tr>`;
@@ -486,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             } else if (detailType === "accelerators") {
                 detailModalTitle.textContent = "Active GPU & TPU Accelerators";
-                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Accelerator Type</th><th style="cursor: pointer;">Count</th>`;
+                detailTableHead.innerHTML = `<th><div class="th-filter-container"><span>Pod Name</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Namespace</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Assigned Node</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Accelerator Type</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Count</span><span class="th-filter-icon">≡</span></div></th>`;
                 const list = (latestTelemetryData.accelerators && latestTelemetryData.accelerators.details) ? latestTelemetryData.accelerators.details : [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active accelerators allocated.</td></tr>`;
@@ -497,7 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             } else if (detailType === "gvisor") {
                 detailModalTitle.textContent = "gVisor Isolated Sandboxes";
-                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Runtime Class</th><th style="cursor: pointer;">Status</th>`;
+                detailTableHead.innerHTML = `<th><div class="th-filter-container"><span>Pod Name</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Namespace</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Assigned Node</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Runtime Class</span><span class="th-filter-icon">≡</span></div></th><th><div class="th-filter-container"><span>Status</span><span class="th-filter-icon">≡</span></div></th>`;
                 const list = (latestTelemetryData.accelerators && latestTelemetryData.accelerators.gvisor_details) ? latestTelemetryData.accelerators.gvisor_details : [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No gVisor sandboxes active.</td></tr>`;

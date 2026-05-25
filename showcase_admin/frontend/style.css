@@ -890,3 +890,49 @@ body {
 .telemetry-table tr:hover td {
     background: rgba(255, 255, 255, 0.02);
 }
+
+/* Google Sheets Style Column Header Dropdown */
+.th-filter-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.th-filter-icon {
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+.th-filter-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--cyan-neon);
+}
+
+.sheets-filter-dropdown {
+    position: absolute;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-standard);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    padding: 0.5rem;
+    z-index: 1000;
+    min-width: 160px;
+}
+.dropdown-item {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.2s, color 0.2s;
+}
+.dropdown-item:hover {
+    background: rgba(0, 229, 255, 0.1);
+    color: var(--cyan-neon);
+}
