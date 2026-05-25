@@ -1,5 +1,5 @@
 # Tier 1: G2 Spot (NVIDIA L4)
-apiVersion: cloud.google.com/v1
+apiVersion: node.gke.io/v1
 kind: ComputeClass
 metadata:
   name: g2-spot
@@ -12,7 +12,7 @@ spec:
     count: 1
 ---
 # Tier 2: G4 Spot (NVIDIA T4 / L4G)
-apiVersion: cloud.google.com/v1
+apiVersion: node.gke.io/v1
 kind: ComputeClass
 metadata:
   name: g4-spot
@@ -22,7 +22,7 @@ spec:
   spot: true
 ---
 # Tier 3: G2 On-Demand (NVIDIA L4)
-apiVersion: cloud.google.com/v1
+apiVersion: node.gke.io/v1
 kind: ComputeClass
 metadata:
   name: g2-ondemand
@@ -35,7 +35,7 @@ spec:
     count: 1
 ---
 # Tier 4: G4 On-Demand (NVIDIA T4 / L4G)
-apiVersion: cloud.google.com/v1
+apiVersion: node.gke.io/v1
 kind: ComputeClass
 metadata:
   name: g4-ondemand
