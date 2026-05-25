@@ -146,6 +146,8 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
             except client.exceptions.ApiException as e:
                 if e.status == 409 or (e.status == 400 and "already exists" in str(e).lower()):
                     continue
+                if e.status == 404 and kind in ("InferenceObjective", "ComputeClass"):
+                    continue
                 raise e
 
 # ----------------------------------------------------------------------
