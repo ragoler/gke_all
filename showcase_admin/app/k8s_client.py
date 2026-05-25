@@ -144,7 +144,7 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                             body=doc
                         )
             except client.exceptions.ApiException as e:
-                if e.status == 409:
+                if e.status == 409 or (e.status == 400 and "already exists" in str(e).lower()):
                     continue
                 raise e
 
