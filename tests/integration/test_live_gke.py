@@ -498,6 +498,36 @@ async def test_inference_gateway_live_deploy(live_admin_url):
         assert res.status_code == 200
         data = res.json()
         assert data["status"] in ("DEPLOYING", "PROVISIONING", "ACTIVE")
+        
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        custom_api = client.CustomObjectsApi(api)
+        is_programmed = False
+        last_msg = ""
+        for _ in range(30):
+            try:
+                gw = await custom_api.get_namespaced_custom_object(
+                    group="gateway.networking.k8s.io",
+                    version="v1",
+                    namespace=GATEWAY_NS,
+                    plural="gateways",
+                    name="inference-gateway"
+                )
+                conditions = gw.get("status", {}).get("conditions", [])
+                for cond in conditions:
+                    if cond.get("type") == "Programmed":
+                        if cond.get("status") == "True":
+                            is_programmed = True
+                            break
+                        else:
+                            last_msg = cond.get("message", "")
+                if is_programmed:
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(3.0)
+            
+        assert is_programmed, f"Gateway inference-gateway failed to reach Programmed=True state. Last condition message: {last_msg}"
 
 @pytest.mark.gke
 @pytest.mark.anyio

@@ -4,7 +4,7 @@ metadata:
   name: inference-gateway
   namespace: ${NAMESPACE}
 spec:
-  gatewayClassName: gke-l7-gxlb
+  gatewayClassName: gke-l7-regional-external-managed
   listeners:
   - name: http
     port: 80
