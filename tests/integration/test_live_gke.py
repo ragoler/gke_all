@@ -306,10 +306,19 @@ async def test_agent_sandbox_message_routing(live_admin_url):
             f"{live_admin_url}/api/sandboxes/{claim_id}/message",
             json={"message": "Live integration verification prompt", "provider": "vertex"},
             headers=AUTH_HEADERS,
-            timeout=60.0
+            timeout=300.0
         )
         assert msg_res.status_code == 200
         assert "Live integration verification prompt" in msg_res.json()["reply"]
+
+        quote_res = await http.post(
+            f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
+            json={"provider": "vertex"},
+            headers=AUTH_HEADERS,
+            timeout=300.0
+        )
+        assert quote_res.status_code == 200
+        assert len(quote_res.json()["quote"]) > 0
 
 @pytest.mark.gke
 @pytest.mark.anyio
