@@ -81,12 +81,12 @@
                     <span class="telemetry-val" id="telemetry-pods-total">-</span>
                     <span class="telemetry-sub" id="telemetry-pods-details">Running: - | Pending: - | Failed: -</span>
                 </div>
-                <div class="telemetry-card">
-                    <span class="telemetry-label">Nvidia L4 GPUs</span>
+                <div class="telemetry-card clickable" data-detail="accelerators">
+                    <span class="telemetry-label">Active Accelerators</span>
                     <span class="telemetry-val" id="telemetry-gpu">-</span>
                     <span class="telemetry-sub">Dedicated Hardware Allocations</span>
                 </div>
-                <div class="telemetry-card">
+                <div class="telemetry-card clickable" data-detail="gvisor">
                     <span class="telemetry-label">gVisor Sandboxes</span>
                     <span class="telemetry-val" id="telemetry-gvisor">-</span>
                     <span class="telemetry-sub">Kernel-Isolated Runtimes</span>
@@ -103,6 +103,9 @@
                 <button class="close-console-btn" id="close-detail-btn">&times;</button>
             </div>
             <div class="console-body" style="padding: 1rem; overflow-x: auto; background: var(--bg-card); max-height: 60vh;">
+                <div class="table-filter-container" style="margin-bottom: 1rem;">
+                    <input type="text" id="modal-table-filter" class="modal-filter-input" placeholder="Filter table rows (e.g. running, gvisor, pod name)..." style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-panel); color: var(--text-main);" />
+                </div>
                 <table class="telemetry-table" id="detail-table">
                     <thead>
                         <tr id="detail-table-head"></tr>

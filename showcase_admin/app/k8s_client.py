@@ -687,20 +687,40 @@ async def get_cluster_stats() -> dict:
             "mode": "MOCK",
             "nodes": {
                 "total": 2,
-                "ready": 2
+                "ready": 2,
+                "details": [
+                    {"name": "gke-mock-node-1", "status": "Ready", "version": "v1.35.2", "cpu": "4", "memory": "16Gi", "pods": ["agent-sandbox-demo", "vllm-server"]},
+                    {"name": "gke-mock-node-2", "status": "Ready", "version": "v1.35.2", "cpu": "8", "memory": "32Gi", "pods": ["gpu-inference-playroom"]}
+                ]
             },
             "namespaces": {
-                "total": 5
+                "total": 5,
+                "details": [
+                    {"name": "gke-showcase-agent-sandbox", "status": "Active", "age": "5h 12m", "pods": ["agent-sandbox-demo"]},
+                    {"name": "gke-showcase-gpu-inference", "status": "Active", "age": "3h 45m", "pods": ["vllm-server", "gpu-inference-playroom"]},
+                    {"name": "kube-system", "status": "Active", "age": "2d 4h", "pods": ["coredns", "kube-proxy"]}
+                ]
             },
             "pods": {
                 "total": 14,
                 "running": 12,
                 "pending": 1,
-                "failed": 1
+                "failed": 1,
+                "details": [
+                    {"name": "agent-sandbox-demo", "namespace": "gke-showcase-agent-sandbox", "status": "Running", "node": "gke-mock-node-1", "ip": "10.100.1.5"},
+                    {"name": "vllm-server", "namespace": "gke-showcase-gpu-inference", "status": "Running", "node": "gke-mock-node-1", "ip": "10.100.1.6"},
+                    {"name": "gpu-inference-playroom", "namespace": "gke-showcase-gpu-inference", "status": "Running", "node": "gke-mock-node-2", "ip": "10.100.2.4"}
+                ]
             },
             "accelerators": {
                 "nvidia_l4": 1,
-                "gvisor": 2
+                "gvisor": 2,
+                "details": [
+                    {"pod_name": "vllm-server", "namespace": "gke-showcase-gpu-inference", "node": "gke-mock-node-1", "type": "NVIDIA L4", "count": 1}
+                ],
+                "gvisor_details": [
+                    {"name": "agent-sandbox-demo", "namespace": "gke-showcase-agent-sandbox", "node": "gke-mock-node-1", "status": "Running"}
+                ]
             }
         }
 
@@ -786,6 +806,8 @@ async def get_cluster_stats() -> dict:
             nvidia_l4_count = 0
             gvisor_pods = 0
             pod_details = []
+            accelerator_details = []
+            gvisor_details = []
 
             for pod in pods.items:
                 meta = getattr(pod, "metadata", None)
@@ -814,16 +836,45 @@ async def get_cluster_stats() -> dict:
                 if pod.spec:
                     if getattr(pod.spec, "runtime_class_name", None) == "gvisor":
                         gvisor_pods += 1
+                        gvisor_details.append({
+                            "name": name,
+                            "namespace": ns,
+                            "node": node,
+                            "status": phase
+                        })
                     containers = getattr(pod.spec, "containers", []) or []
+                    gpu_count_for_pod = 0
+                    accel_type = "NVIDIA L4"
                     for c in containers:
                         res = getattr(c, "resources", None)
                         if res and hasattr(res, "requests") and res.requests:
                             gpu_req = res.requests.get("nvidia.com/gpu")
+                            tpu_req = res.requests.get("google.com/tpu")
                             if gpu_req:
-                                try:
-                                    nvidia_l4_count += int(gpu_req)
-                                except ValueError:
-                                    nvidia_l4_count += 1
+                                try: gpu_count_for_pod += int(gpu_req)
+                                except ValueError: gpu_count_for_pod += 1
+                            if tpu_req:
+                                accel_type = "Google TPU"
+                                try: gpu_count_for_pod += int(tpu_req)
+                                except ValueError: gpu_count_for_pod += 1
+                                
+                    if gpu_count_for_pod > 0:
+                        nvidia_l4_count += gpu_count_for_pod
+                        accelerator_details.append({
+                            "pod_name": name,
+                            "namespace": ns,
+                            "node": node,
+                            "type": accel_type,
+                            "count": gpu_count_for_pod
+                        })
+
+            # Enrich Nodes with pods list
+            for nd in node_details:
+                nd["pods"] = [p["name"] for p in pod_details if p["node"] == nd["name"]]
+                
+            # Enrich Namespaces with pods list
+            for nsd in namespace_details:
+                nsd["pods"] = [p["name"] for p in pod_details if p["namespace"] == nsd["name"]]
 
             return {
                 "mode": "REAL",
@@ -845,7 +896,9 @@ async def get_cluster_stats() -> dict:
                 },
                 "accelerators": {
                     "nvidia_l4": nvidia_l4_count,
-                    "gvisor": max(gvisor_nodes, gvisor_pods)
+                    "gvisor": max(gvisor_nodes, gvisor_pods),
+                    "details": accelerator_details,
+                    "gvisor_details": gvisor_details
                 }
             }
         except Exception as e:

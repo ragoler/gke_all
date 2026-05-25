@@ -382,6 +382,60 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const modalTableFilter = document.getElementById("modal-table-filter");
+    if (modalTableFilter) {
+        modalTableFilter.addEventListener("input", (e) => {
+            const filterText = e.target.value.toLowerCase();
+            const rows = detailTableBody.querySelectorAll("tr");
+            rows.forEach(row => {
+                if (row.textContent.toLowerCase().includes(filterText)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        });
+    }
+
+    if (detailTableHead) {
+        detailTableHead.addEventListener("click", (e) => {
+            const th = e.target.closest("th");
+            if (!th) return;
+            
+            const thIndex = Array.from(th.parentNode.children).indexOf(th);
+            const isAscending = th.classList.contains("sort-asc");
+            
+            Array.from(th.parentNode.children).forEach(header => {
+                header.classList.remove("sort-asc", "sort-desc");
+                header.textContent = header.textContent.replace(" ▲", "").replace(" ▼", "");
+            });
+            
+            if (isAscending) {
+                th.classList.add("sort-desc");
+                th.textContent += " ▼";
+            } else {
+                th.classList.add("sort-asc");
+                th.textContent += " ▲";
+            }
+            
+            const rows = Array.from(detailTableBody.querySelectorAll("tr"));
+            rows.sort((a, b) => {
+                const aText = a.children[thIndex] ? a.children[thIndex].textContent.trim() : "";
+                const bText = b.children[thIndex] ? b.children[thIndex].textContent.trim() : "";
+                
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return isAscending ? bNum - aNum : aNum - bNum;
+                }
+                return isAscending ? bText.localeCompare(aText) : aText.localeCompare(bText);
+            });
+            
+            detailTableBody.innerHTML = "";
+            rows.forEach(row => detailTableBody.appendChild(row));
+        });
+    }
+
     const telemetryCards = document.querySelectorAll(".telemetry-card.clickable");
     telemetryCards.forEach(card => {
         card.addEventListener("click", () => {
@@ -390,32 +444,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
             detailTableHead.innerHTML = "";
             detailTableBody.innerHTML = "";
+            if (modalTableFilter) modalTableFilter.value = "";
 
             if (detailType === "nodes") {
                 detailModalTitle.textContent = "Compute Nodes Diagnostics";
-                detailTableHead.innerHTML = `<th>Node Name</th><th>Status</th><th>Kubelet Version</th><th>Allocatable CPU</th><th>Allocatable Memory</th>`;
+                detailTableHead.innerHTML = `<th style="cursor: pointer;">Node Name</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Kubelet Version</th><th style="cursor: pointer;">Allocatable CPU</th><th style="cursor: pointer;">Allocatable Memory</th><th style="cursor: pointer;">Active Pods</th>`;
                 const list = latestTelemetryData.nodes.details || [];
                 if (list.length === 0) {
-                    detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No compute nodes found or RBAC restricted.</td></tr>`;
+                    detailTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No compute nodes found or RBAC restricted.</td></tr>`;
                 } else {
                     list.forEach(n => {
-                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'ready' ? 'active' : 'error'}">${n.status}</span></td><td>${n.version}</td><td>${n.cpu}</td><td>${n.memory}</td></tr>`;
+                        const podsStr = (n.pods && n.pods.length > 0) ? n.pods.join(", ") : "None";
+                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'ready' ? 'active' : 'error'}">${n.status}</span></td><td>${n.version}</td><td>${n.cpu}</td><td>${n.memory}</td><td><span style="font-size: 0.85rem; color: var(--text-muted);">${podsStr}</span></td></tr>`;
                     });
                 }
             } else if (detailType === "namespaces") {
                 detailModalTitle.textContent = "Active Kubernetes Namespaces";
-                detailTableHead.innerHTML = `<th>Namespace</th><th>Status</th><th>Elapsed Age</th>`;
+                detailTableHead.innerHTML = `<th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Elapsed Age</th><th style="cursor: pointer;">Active Pods</th>`;
                 const list = latestTelemetryData.namespaces.details || [];
                 if (list.length === 0) {
-                    detailTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No namespaces found.</td></tr>`;
+                    detailTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No namespaces found.</td></tr>`;
                 } else {
                     list.forEach(n => {
-                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'active' ? 'active' : 'dormant'}">${n.status}</span></td><td>${n.age}</td></tr>`;
+                        const podsStr = (n.pods && n.pods.length > 0) ? n.pods.join(", ") : "None";
+                        detailTableBody.innerHTML += `<tr><td><strong>${n.name}</strong></td><td><span class="status-badge ${n.status.toLowerCase() === 'active' ? 'active' : 'dormant'}">${n.status}</span></td><td>${n.age}</td><td><span style="font-size: 0.85rem; color: var(--text-muted);">${podsStr}</span></td></tr>`;
                     });
                 }
             } else if (detailType === "pods") {
                 detailModalTitle.textContent = "Cluster Pod Workloads";
-                detailTableHead.innerHTML = `<th>Pod Name</th><th>Namespace</th><th>Status</th><th>Assigned Node</th><th>Pod IP</th>`;
+                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Status</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Pod IP</th>`;
                 const list = latestTelemetryData.pods.details || [];
                 if (list.length === 0) {
                     detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No pod workloads active.</td></tr>`;
@@ -425,6 +482,28 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (p.status.toLowerCase() === "running") badgeClass = "active";
                         else if (p.status.toLowerCase() === "failed") badgeClass = "error";
                         detailTableBody.innerHTML += `<tr><td><strong>${p.name}</strong></td><td>${p.namespace}</td><td><span class="status-badge ${badgeClass}">${p.status}</span></td><td>${p.node}</td><td>${p.ip}</td></tr>`;
+                    });
+                }
+            } else if (detailType === "accelerators") {
+                detailModalTitle.textContent = "Active GPU & TPU Accelerators";
+                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Accelerator Type</th><th style="cursor: pointer;">Count</th>`;
+                const list = (latestTelemetryData.accelerators && latestTelemetryData.accelerators.details) ? latestTelemetryData.accelerators.details : [];
+                if (list.length === 0) {
+                    detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active accelerators allocated.</td></tr>`;
+                } else {
+                    list.forEach(a => {
+                        detailTableBody.innerHTML += `<tr><td><strong>${a.pod_name}</strong></td><td>${a.namespace}</td><td>${a.node}</td><td><span class="status-badge active">${a.type}</span></td><td><strong>${a.count}</strong></td></tr>`;
+                    });
+                }
+            } else if (detailType === "gvisor") {
+                detailModalTitle.textContent = "gVisor Isolated Sandboxes";
+                detailTableHead.innerHTML = `<th style="cursor: pointer;">Pod Name</th><th style="cursor: pointer;">Namespace</th><th style="cursor: pointer;">Assigned Node</th><th style="cursor: pointer;">Runtime Class</th><th style="cursor: pointer;">Status</th>`;
+                const list = (latestTelemetryData.accelerators && latestTelemetryData.accelerators.gvisor_details) ? latestTelemetryData.accelerators.gvisor_details : [];
+                if (list.length === 0) {
+                    detailTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No gVisor sandboxes active.</td></tr>`;
+                } else {
+                    list.forEach(g => {
+                        detailTableBody.innerHTML += `<tr><td><strong>${g.name}</strong></td><td>${g.namespace}</td><td>${g.node}</td><td><span class="status-badge active">gvisor</span></td><td><span class="status-badge active">${g.status}</span></td></tr>`;
                     });
                 }
             }
