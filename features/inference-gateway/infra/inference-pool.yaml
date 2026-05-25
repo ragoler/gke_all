@@ -13,4 +13,5 @@ spec:
     group: ""
     kind: Service
     name: inference-gateway-svc
-    port: 8080
+    port:
+      number: 8080
