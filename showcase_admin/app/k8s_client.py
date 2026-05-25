@@ -714,9 +714,11 @@ async def get_cluster_stats() -> dict:
             total_namespaces = len(namespaces.items)
             namespace_details = []
             for ns in namespaces.items:
-                name = getattr(ns.metadata, "name", "Unknown") if ns.metadata else "Unknown"
-                phase = getattr(ns.status, "phase", "Unknown") if ns.status else "Unknown"
-                creation = getattr(ns.metadata, "creation_timestamp", None) if ns.metadata else None
+                meta = getattr(ns, "metadata", None)
+                name = getattr(meta, "name", "Unknown") if meta else "Unknown"
+                status_obj = getattr(ns, "status", None)
+                phase = getattr(status_obj, "phase", "Unknown") if status_obj else "Unknown"
+                creation = getattr(meta, "creation_timestamp", None) if meta else None
                 age = "N/A"
                 if creation:
                     try:
