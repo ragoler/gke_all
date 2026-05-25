@@ -407,6 +407,33 @@ async def get_showcase_logs(name: str, namespace: str) -> str:
                         except Exception as log_err:
                             aggregated_logs.append(f"{header}\n[Logs unavailable: {log_err}]\n")
                 
+                # Inspect Gateway CRD Status Conditions
+                try:
+                    custom_api = client.CustomObjectsApi(api_client)
+                    gw_name = f"{name}-gateway"
+                    if name == "inference-gateway":
+                        gw_name = "inference-gateway"
+                    gw = await custom_api.get_namespaced_custom_object(
+                        group="gateway.networking.k8s.io",
+                        version="v1",
+                        namespace=namespace,
+                        plural="gateways",
+                        name=gw_name
+                    )
+                    conditions = gw.get("status", {}).get("conditions", [])
+                    for cond in conditions:
+                        if cond.get("type") == "Programmed" and cond.get("status") == "False":
+                            msg = cond.get("message", "Unknown gateway programming error")
+                            aggregated_logs.append(
+                                f"=== [Gateway: {gw_name} (Status: Invalid / Not Programmed)] ===\n"
+                                f"⚠️ [GATEWAY MISCONFIGURATION DETECTED]: The GKE Gateway API Controller failed to program the external load balancer forwarding rules.\n"
+                                f"Diagnostic Error: {msg}\n"
+                                f"Action Required: Update HTTPRoute backendRef to target a valid Kubernetes Service or transition GatewayClass to an internal/regional proxy.\n"
+                            )
+                            break
+                except Exception:
+                    pass
+
                 return "\n".join(aggregated_logs) if aggregated_logs else "No logs available."
             except Exception as e:
                 return f"Failed to retrieve live GKE logs: {str(e)}"
