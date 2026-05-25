@@ -504,7 +504,7 @@ async def test_inference_gateway_live_deploy(live_admin_url):
         custom_api = client.CustomObjectsApi(api)
         is_programmed = False
         last_msg = ""
-        for _ in range(30):
+        for _ in range(60):
             try:
                 gw = await custom_api.get_namespaced_custom_object(
                     group="gateway.networking.k8s.io",
@@ -525,7 +525,7 @@ async def test_inference_gateway_live_deploy(live_admin_url):
                     break
             except Exception:
                 pass
-            await asyncio.sleep(3.0)
+            await asyncio.sleep(5.0)
             
         assert is_programmed, f"Gateway inference-gateway failed to reach Programmed=True state. Last condition message: {last_msg}"
 
