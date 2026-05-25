@@ -102,16 +102,18 @@
                 <span class="console-title" id="detail-modal-title">Cluster Telemetry Details</span>
                 <button class="close-console-btn" id="close-detail-btn">&times;</button>
             </div>
-            <div class="console-body" style="padding: 1rem; overflow-x: auto; background: var(--bg-card); max-height: 60vh;">
-                <div class="table-filter-container" style="margin-bottom: 1rem;">
-                    <input type="text" id="modal-table-filter" class="modal-filter-input" placeholder="Filter table rows (e.g. running, gvisor, pod name)..." style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-panel); color: var(--text-main);" />
-                </div>
+            <div class="console-body" style="padding: 1rem; overflow-x: auto; background: var(--bg-card); max-height: 60vh; position: relative;">
                 <table class="telemetry-table" id="detail-table">
                     <thead>
                         <tr id="detail-table-head"></tr>
                     </thead>
                     <tbody id="detail-table-body"></tbody>
                 </table>
+                <!-- Google Sheets Style Column Header Dropdown Menu -->
+                <div id="column-filter-dropdown" class="sheets-filter-dropdown" style="display: none;">
+                    <div class="dropdown-item" id="sort-asc-btn"><span class="dropdown-icon">▲</span> Sort A to Z</div>
+                    <div class="dropdown-item" id="sort-desc-btn"><span class="dropdown-icon">▼</span> Sort Z to A</div>
+                </div>
             </div>
         </div>
     </div>
