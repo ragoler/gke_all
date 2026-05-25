@@ -85,6 +85,10 @@ for img in showcase-admin agent-sandbox-demo agent-sandbox-router gpu-inference-
 done
 echo "Pre-flight image validation passed successfully."
 
+# Pre-flight validation: ensure Network Services API is enabled for GKE Gateway Service Extensions
+echo "Verifying and enabling Network Services API for GKE Gateway Service Extensions..."
+gcloud services enable networkservices.googleapis.com --project="$PROJECT_ID" --quiet || echo "Network Services API already enabled."
+
 # Pre-flight validation: ensure proxy-only subnet exists in region for Regional Gateway API
 echo "Verifying and provisioning proxy-only subnet in region $REGION for Regional Gateway API..."
 gcloud compute networks subnets create gke-showcase-proxy-subnet \
