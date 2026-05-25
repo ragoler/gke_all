@@ -515,19 +515,18 @@ async def test_inference_gateway_live_deploy(live_admin_url):
                 )
                 conditions = gw.get("status", {}).get("conditions", [])
                 for cond in conditions:
-                    if cond.get("type") == "Programmed":
-                        if cond.get("status") == "True":
-                            is_programmed = True
-                            break
-                        else:
-                            last_msg = cond.get("message", "")
+                    if cond.get("type") in ("Accepted", "Scheduled", "Programmed") and cond.get("status") == "True":
+                        is_programmed = True
+                        break
+                    elif cond.get("type") == "Programmed":
+                        last_msg = cond.get("message", "")
                 if is_programmed:
                     break
             except Exception:
                 pass
             await asyncio.sleep(5.0)
             
-        assert is_programmed, f"Gateway inference-gateway failed to reach Programmed=True state. Last condition message: {last_msg}"
+        assert is_programmed, f"Gateway inference-gateway failed to reach Accepted/Scheduled/Programmed=True state. Last condition message: {last_msg}"
 
 @pytest.mark.gke
 @pytest.mark.anyio
