@@ -50,7 +50,7 @@ class ShowcaseModel(Base):
             old_status = self.status
             if old_status == "DORMANT" and new_status not in {"DORMANT", "DEPLOYING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
-            if old_status == "TERMINATING" and new_status not in {"TERMINATING", "DORMANT", "ERROR"}:
+            if old_status == "TERMINATING" and new_status not in {"TERMINATING", "DORMANT", "DEPLOYING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
             if old_status == "ACTIVE" and new_status not in {"ACTIVE", "DEPLOYING", "TERMINATING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
