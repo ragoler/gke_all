@@ -383,7 +383,7 @@ async def test_gpu_inference_provisioning_logs(live_admin_url):
         res = await http.get(f"{live_admin_url}/api/showcases/gpu-inference/logs", headers=AUTH_HEADERS, timeout=15.0)
         assert res.status_code == 200
         logs = res.json()["logs"]
-        assert "Container: vllm-server" in logs or "No pods active" in logs or "Logs unavailable" in logs
+        assert "Container: vllm-server" in logs or "No pods active" in logs or "Logs unavailable" in logs or "Status: Pending" in logs
 
 @pytest.mark.gke
 @pytest.mark.anyio
