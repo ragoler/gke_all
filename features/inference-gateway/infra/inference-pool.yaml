@@ -4,6 +4,12 @@ metadata:
   name: advanced-inference-pool
   namespace: ${NAMESPACE}
 spec:
-  targetService:
-    name: inference-gateway-svc
+  selector:
+    app: inference-gateway
+  targetPorts:
+  - name: http
     port: 8080
+  endpointPickerRef:
+    group: ""
+    kind: Service
+    name: inference-gateway-svc
