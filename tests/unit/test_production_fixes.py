@@ -79,7 +79,7 @@ async def test_get_showcase_logs_bad_request_400():
         mock_pod_list = mock.MagicMock()
         mock_pod = mock.MagicMock()
         mock_pod.metadata.name = "vllm-pod-1"
-        mock_pod.status.phase = "Pending"
+        mock_pod.status.phase = "ContainerCreating"
         mock_c = mock.MagicMock()
         mock_c.name = "vllm-container"
         mock_pod.spec.containers = [mock_c]

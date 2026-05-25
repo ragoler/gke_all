@@ -747,11 +747,14 @@ async def get_cluster_stats() -> dict:
             pod_details = []
 
             for pod in pods.items:
-                name = getattr(pod.metadata, "name", "Unknown") if pod.metadata else "Unknown"
-                ns = getattr(pod.metadata, "namespace", "Unknown") if pod.metadata else "Unknown"
-                phase = getattr(pod.status, "phase", "Unknown") if pod.status else "Unknown"
-                node = getattr(pod.spec, "node_name", "N/A") if pod.spec else "N/A"
-                ip = getattr(pod.status, "pod_ip", "N/A") if pod.status else "N/A"
+                meta = getattr(pod, "metadata", None)
+                name = getattr(meta, "name", "Unknown") if meta else "Unknown"
+                ns = getattr(meta, "namespace", "Unknown") if meta else "Unknown"
+                status_obj = getattr(pod, "status", None)
+                phase = getattr(status_obj, "phase", "Unknown") if status_obj else "Unknown"
+                spec_obj = getattr(pod, "spec", None)
+                node = getattr(spec_obj, "node_name", "N/A") if spec_obj else "N/A"
+                ip = getattr(status_obj, "pod_ip", "N/A") if status_obj else "N/A"
                 pod_details.append({
                     "name": name,
                     "namespace": ns,

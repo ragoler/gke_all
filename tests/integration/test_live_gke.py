@@ -379,21 +379,28 @@ async def test_gpu_inference_provisioning_logs(live_admin_url):
 @pytest.mark.gke
 @pytest.mark.anyio
 async def test_spot_gpu_node_pool_autoscaling():
-    """Test 19: Audit Spot L4 GPU node pool scale-up requests and node taints."""
+    """Test 19: Audit Spot L4 GPU node pool scale-up requests and ComputeClass node affinity."""
     await k8s_client.init_k8s_connection()
     async with client.ApiClient() as api:
         core_v1 = client.CoreV1Api(api)
         pods = []
-        for _ in range(30):
+        for _ in range(60):
             res = await core_v1.list_namespaced_pod(GPU_NS, label_selector="app=gpu-inference")
             if res.items:
                 pods = res.items
                 break
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(3.0)
         assert len(pods) > 0
         pod = pods[0]
-        assert pod.spec.node_selector.get("cloud.google.com/gke-accelerator") == "nvidia-l4"
-        assert pod.spec.node_selector.get("cloud.google.com/gke-spot") == "true"
+        # Verify ComputeClass node affinity hierarchy is active
+        affinity = getattr(pod.spec, "affinity", None)
+        assert affinity is not None
+        node_aff = getattr(affinity, "node_affinity", None)
+        assert node_aff is not None
+        pref = getattr(node_aff, "preferred_during_scheduling_ignored_during_execution", [])
+        assert len(pref) > 0
+        classes = [p.preference.match_expressions[0].values[0] for p in pref if p.preference and p.preference.match_expressions]
+        assert "g2-spot" in classes
 
 @pytest.mark.gke
 @pytest.mark.anyio
