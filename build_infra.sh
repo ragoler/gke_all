@@ -92,7 +92,7 @@ gcloud compute networks subnets create gke-showcase-proxy-subnet \
     --role=ACTIVE \
     --region="$REGION" \
     --network=default \
-    --range=10.200.0.0/23 \
+    --range=192.168.10.0/23 \
     --project="$PROJECT_ID" \
     --quiet || echo "Proxy-only subnet already exists or active in region."
 
