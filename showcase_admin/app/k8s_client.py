@@ -126,15 +126,23 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                     elif kind == "InferenceObjective":
                         plural = "inferenceobjectives"
                     elif kind == "ComputeClass":
-                        plural = "computeclasss"
+                        plural = "computeclasses"
                         
-                    await custom_api.create_namespaced_custom_object(
-                        group=group,
-                        version=version,
-                        namespace=namespace,
-                        plural=plural,
-                        body=doc
-                    )
+                    if kind == "ComputeClass":
+                        await custom_api.create_cluster_custom_object(
+                            group=group,
+                            version=version,
+                            plural=plural,
+                            body=doc
+                        )
+                    else:
+                        await custom_api.create_namespaced_custom_object(
+                            group=group,
+                            version=version,
+                            namespace=namespace,
+                            plural=plural,
+                            body=doc
+                        )
             except client.exceptions.ApiException as e:
                 if e.status == 409:
                     continue
