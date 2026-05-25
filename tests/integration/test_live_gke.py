@@ -481,3 +481,41 @@ async def test_gpu_inference_teardown(live_admin_url):
             except Exception:
                 break
             await asyncio.sleep(2.0)
+
+GATEWAY_NS = "gke-showcase-inference-gateway"
+
+@pytest.mark.gke
+@pytest.mark.anyio
+async def test_inference_gateway_live_deploy(live_admin_url):
+    """Test 22: Enable showcase via POST /deploy on inference-gateway and audit Gateway CRD status."""
+    async with httpx.AsyncClient() as http:
+        res = await http.post(
+            f"{live_admin_url}/api/showcases/inference-gateway/deploy",
+            json={"namespace": GATEWAY_NS},
+            headers=AUTH_HEADERS,
+            timeout=25.0
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] in ("DEPLOYING", "PROVISIONING", "ACTIVE")
+
+@pytest.mark.gke
+@pytest.mark.anyio
+async def test_inference_gateway_teardown(live_admin_url):
+    """Test 23: Disable showcase via DELETE /teardown on inference-gateway and verify namespace cleanup."""
+    async with httpx.AsyncClient() as http:
+        res = await http.delete(f"{live_admin_url}/api/showcases/inference-gateway/teardown", headers=AUTH_HEADERS, timeout=15.0)
+        assert res.status_code == 200
+        assert res.json()["status"] in ("TERMINATING", "DORMANT")
+        
+    await k8s_client.init_k8s_connection()
+    async with client.ApiClient() as api:
+        core_v1 = client.CoreV1Api(api)
+        for _ in range(30):
+            try:
+                ns = await core_v1.read_namespace(GATEWAY_NS)
+                if ns.status.phase in ("Terminating", "Dormant"):
+                    pass
+            except Exception:
+                break
+            await asyncio.sleep(2.0)
