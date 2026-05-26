@@ -105,9 +105,9 @@ AVAILABLE_SHOWCASES = {
     },
     "inference-gateway": {
         "name": "inference-gateway",
-        "title": "GKE Inference Gateway",
-        "description": "Advanced L7 AI-aware load balancing, token-aware routing, and priority queueing for Large Language Model serving on GKE.",
-        "gke_features": ["InferencePool Custom Resources", "InferenceObjective Queuing", "Token-Aware Load Balancing", "L7 Gateway API"]
+        "title": "GKE Inference Gateway (llm-d)",
+        "description": "Intelligent AI-aware L7 load balancing powered by Envoy and Endpoint Picker (EPP) sidecars. Optimizes Time-to-First-Token via Prefix-Cache Aware Routing across disaggregated vLLM model server pools.",
+        "gke_features": ["InferencePool & EPP Sidecars", "Prefix-Cache Aware Routing", "KV Cache & Queue Length Metrics", "Regional Internal Gateway (gke-l7-rilb)"]
     }
 }
 
