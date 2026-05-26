@@ -8,7 +8,7 @@ spec:
     matchLabels:
       app: inference-gateway
   targetPorts:
-  - number: 8080
+  - number: 8000
   endpointPickerRef:
     group: ""
     kind: Service

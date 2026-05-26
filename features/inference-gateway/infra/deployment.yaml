@@ -6,7 +6,7 @@ metadata:
   labels:
     app: inference-gateway
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: inference-gateway
@@ -15,16 +15,93 @@ spec:
       labels:
         app: inference-gateway
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          # Priority 1: G2 Spot L4 (Weight 100)
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g2-spot"]
+          # Priority 2: G4 Spot (Weight 75)
+          - weight: 75
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g4-spot"]
+          # Priority 3: G2 On-Demand L4 (Weight 50)
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g2-ondemand"]
+          # Priority 4: G4 On-Demand (Weight 25)
+          - weight: 25
+            preference:
+              matchExpressions:
+              - key: node.gke.io/compute-class
+                operator: In
+                values: ["g4-ondemand"]
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "sku"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
       containers:
-      - name: inference-gateway-app
-        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/inference-gateway-playroom:latest
-        imagePullPolicy: Always
+      # Container 1: vLLM Model Server Backend
+      - name: vllm-server
+        image: us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:latest
+        env:
+        - name: MODEL_ID
+          value: "gs://vertex-model-garden-public-us/codegemma/codegemma-7b-it"
+        args:
+        - "python3"
+        - "-m"
+        - "vllm.entrypoints.openai.api_server"
+        - "--model=$(MODEL_ID)"
+        - "--served-model-name=$(MODEL_ID)"
+        - "--max-model-len=2048"
+        - "--enforce-eager"
+        - "--port=8000"
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+      # Container 2: GKE Endpoint Picker (EPP) Sidecar
+      - name: epp-app
+        image: us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/epp:v1.0.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--model_server_http_port=8000"
+        - "--model_server_health_route=/health"
+        - "--port=8080"
         ports:
         - containerPort: 8080
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
+            cpu: "100m"
+            memory: "128Mi"
           limits:
-            memory: "512Mi"
             cpu: "500m"
+            memory: "256Mi"
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory

@@ -88,10 +88,7 @@ build_gpu_playroom() {
 }
 
 build_inference_gateway() {
-  echo ">>> Building Inference Gateway Playroom app..."
-  docker build -t "${REGISTRY}/inference-gateway-playroom:latest" -f ./features/inference-gateway/app/Dockerfile ./features/inference-gateway
-  echo ">>> Pushing Inference Gateway Playroom app..."
-  docker push "${REGISTRY}/inference-gateway-playroom:latest"
+  echo ">>> Inference Gateway utilizes official pre-built Google Cloud disaggregated container images (vLLM and EPP). No custom build required."
 }
 
 # Orchestrate builds
