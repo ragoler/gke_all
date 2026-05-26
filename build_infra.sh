@@ -92,10 +92,13 @@ gcloud services enable networkservices.googleapis.com --project="$PROJECT_ID" --
 # Pre-flight validation: ensure GKE service account has Compute Network Admin, Load Balancer Admin, and Network Services Admin roles for Gateway API
 echo "Verifying and assigning Compute Network/LoadBalancer/NetworkServices Admin roles to GKE Service Account..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
-GKE_SA="service-${PROJECT_NUMBER}@gcp-sa-gkecontainer.iam.gserviceaccount.com"
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${GKE_SA}" --role="roles/compute.networkAdmin" --quiet || echo "Role already bound."
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${GKE_SA}" --role="roles/compute.loadBalancerAdmin" --quiet || echo "Role already bound."
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${GKE_SA}" --role="roles/networkservices.admin" --quiet || echo "Role already bound."
+GKE_SA="service-${PROJECT_NUMBER}@container-engine-robot.iam.gserviceaccount.com"
+GW_SA="service-${PROJECT_NUMBER}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+for sa in "$GKE_SA" "$GW_SA"; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${sa}" --role="roles/compute.networkAdmin" --quiet || echo "Role already bound."
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${sa}" --role="roles/compute.loadBalancerAdmin" --quiet || echo "Role already bound."
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${sa}" --role="roles/networkservices.admin" --quiet || echo "Role already bound."
+done
 
 # Pre-flight validation: ensure proxy-only subnet exists in region for Regional Gateway API
 echo "Verifying and provisioning proxy-only subnet in region $REGION for Regional Gateway API..."
