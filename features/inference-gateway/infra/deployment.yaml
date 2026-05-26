@@ -86,7 +86,7 @@ spec:
           mountPath: /dev/shm
       # Container 2: GKE Endpoint Picker (EPP) Sidecar
       - name: epp-app
-        image: us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/epp:v1.0.0
+        image: registry.k8s.io/gateway-api-inference-extension/epp:v1.3.0
         imagePullPolicy: IfNotPresent
         args:
         - "--model_server_http_port=8000"
