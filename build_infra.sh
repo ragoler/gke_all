@@ -146,6 +146,25 @@ gcloud container node-pools create showcase-gpu-pool \
     --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
     --quiet || echo "Spot GPU node pool already exists or skipped."
 
+# Apply per-feature cluster-scoped prerequisites (declared via paths.cluster_dir in
+# each feature.yaml). These are resources that exist once per cluster — GPU
+# ComputeClasses, CRD installs, etc. — that cannot live inside a per-deploy namespace.
+# Features without a cluster_dir contribute nothing here (no-op).
+echo "Applying per-feature cluster-scoped prerequisites..."
+PY="python3"
+[ -x ".venv/bin/python" ] && PY=".venv/bin/python"
+export PROJECT_NAME="$PROJECT_ID"
+export REGION
+export ARTIFACT_REGISTRY_REPO
+while IFS=$'\t' read -r feature_name cluster_dir; do
+  [ -z "$cluster_dir" ] && continue
+  echo "  -> [$feature_name] applying cluster prerequisites from ${cluster_dir}"
+  for manifest in "$cluster_dir"/*.yaml "$cluster_dir"/*.yml; do
+    [ -e "$manifest" ] || continue
+    "$PY" -c "import os, sys; print(os.path.expandvars(sys.stdin.read()))" < "$manifest" | kubectl apply -f -
+  done
+done < <("$PY" scripts/feature_cluster_dirs.py)
+
 # Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")

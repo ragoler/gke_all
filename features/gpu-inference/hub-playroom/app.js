@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnSendQuery.disabled = true;
 
         try {
-            const response = await fetchWithAuth("/api/inference/chat", {
+            const response = await fetchWithAuth("/api/features/gpu-inference/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: text })

@@ -291,7 +291,7 @@ async def test_agent_sandbox_message_routing(live_admin_url):
         claim_res = None
         for _ in range(12):
             try:
-                claim_res = await http.post(f"{live_admin_url}/api/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
+                claim_res = await http.post(f"{live_admin_url}/api/features/agent-sandbox/sandboxes", headers=AUTH_HEADERS, timeout=15.0)
                 if claim_res.status_code == 200 and "id" in claim_res.json():
                     break
             except (httpx.RequestError, httpx.HTTPError):
@@ -303,7 +303,7 @@ async def test_agent_sandbox_message_routing(live_admin_url):
         claim_id = claim_res.json()["id"]
         
         msg_res = await http.post(
-            f"{live_admin_url}/api/sandboxes/{claim_id}/message",
+            f"{live_admin_url}/api/features/agent-sandbox/sandboxes/{claim_id}/message",
             json={"message": "Live integration verification prompt", "provider": "vertex"},
             headers=AUTH_HEADERS,
             timeout=300.0
@@ -312,7 +312,7 @@ async def test_agent_sandbox_message_routing(live_admin_url):
         assert "Live integration verification prompt" in msg_res.json()["reply"]
 
         quote_res = await http.post(
-            f"{live_admin_url}/api/sandboxes/{claim_id}/quote",
+            f"{live_admin_url}/api/features/agent-sandbox/sandboxes/{claim_id}/quote",
             json={"provider": "vertex"},
             headers=AUTH_HEADERS,
             timeout=300.0
@@ -453,7 +453,7 @@ async def test_gpu_inference_completions(live_admin_url):
 
     async with httpx.AsyncClient() as http:
         res = await http.post(
-            f"{live_admin_url}/api/inference/chat",
+            f"{live_admin_url}/api/features/gpu-inference/chat",
             json={"prompt": "Hello GPU inference"},
             headers=AUTH_HEADERS,
             timeout=60.0
@@ -476,101 +476,6 @@ async def test_gpu_inference_teardown(live_admin_url):
         for _ in range(30):
             try:
                 ns = await core_v1.read_namespace(GPU_NS)
-                if ns.status.phase in ("Terminating", "Dormant"):
-                    pass
-            except Exception:
-                break
-            await asyncio.sleep(2.0)
-
-GATEWAY_NS = "gke-showcase-inference-gateway"
-
-@pytest.mark.gke
-@pytest.mark.anyio
-async def test_inference_gateway_live_deploy(live_admin_url):
-    """Test 22: Enable showcase via POST /deploy on inference-gateway and audit Gateway CRD status."""
-    async with httpx.AsyncClient() as http:
-        res = await http.post(
-            f"{live_admin_url}/api/showcases/inference-gateway/deploy",
-            json={"namespace": GATEWAY_NS},
-            headers=AUTH_HEADERS,
-            timeout=25.0
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["status"] in ("DEPLOYING", "PROVISIONING", "ACTIVE")
-        
-    await k8s_client.init_k8s_connection()
-    async with client.ApiClient() as api:
-        custom_api = client.CustomObjectsApi(api)
-        is_programmed = False
-        last_msg = ""
-        for _ in range(60):
-            try:
-                gw = await custom_api.get_namespaced_custom_object(
-                    group="gateway.networking.k8s.io",
-                    version="v1",
-                    namespace=GATEWAY_NS,
-                    plural="gateways",
-                    name="inference-gateway"
-                )
-                conditions = gw.get("status", {}).get("conditions", [])
-                for cond in conditions:
-                    if cond.get("type") in ("Accepted", "Scheduled", "Programmed") and cond.get("status") == "True":
-                        is_programmed = True
-                        break
-                    elif cond.get("type") == "Programmed":
-                        last_msg = cond.get("message", "")
-                if is_programmed:
-                    break
-            except Exception:
-                pass
-            await asyncio.sleep(5.0)
-            
-        assert is_programmed, f"Gateway inference-gateway failed to reach Accepted/Scheduled/Programmed=True state. Last condition message: {last_msg}"
-
-        # Actively poll for inference-gateway-deployment to reach ready replicas (up to 10 minutes for vLLM image pull & weight loading)
-        apps_v1 = client.AppsV1Api(api)
-        is_ready = False
-        for attempt in range(120):
-            try:
-                dep = await apps_v1.read_namespaced_deployment("inference-gateway-deployment", GATEWAY_NS)
-                ready = getattr(dep.status, "ready_replicas", 0) or 0
-                desired = getattr(dep.spec, "replicas", 1) or 1
-                if ready == desired and ready > 0:
-                    is_ready = True
-                    break
-            except Exception:
-                pass
-            await asyncio.sleep(5.0)
-            
-        if not is_ready:
-            pytest.skip("inference-gateway-deployment did not reach ready state within 10 minutes (likely due to GCE Spot L4 GPU stockout or extended image pull). Skipping completion test.")
-
-    async with httpx.AsyncClient() as http:
-        res = await http.post(
-            f"{live_admin_url}/api/gateway/request",
-            json={"prompt": "Hello Inference Gateway", "priority": "high"},
-            headers=AUTH_HEADERS,
-            timeout=60.0
-        )
-        assert res.status_code == 200
-        assert "reply" in res.json()
-
-@pytest.mark.gke
-@pytest.mark.anyio
-async def test_inference_gateway_teardown(live_admin_url):
-    """Test 23: Disable showcase via DELETE /teardown on inference-gateway and verify namespace cleanup."""
-    async with httpx.AsyncClient() as http:
-        res = await http.delete(f"{live_admin_url}/api/showcases/inference-gateway/teardown", headers=AUTH_HEADERS, timeout=15.0)
-        assert res.status_code == 200
-        assert res.json()["status"] in ("TERMINATING", "DORMANT")
-        
-    await k8s_client.init_k8s_connection()
-    async with client.ApiClient() as api:
-        core_v1 = client.CoreV1Api(api)
-        for _ in range(30):
-            try:
-                ns = await core_v1.read_namespace(GATEWAY_NS)
                 if ns.status.phase in ("Terminating", "Dormant"):
                     pass
             except Exception:

@@ -4,14 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 import os
-import uuid
-import httpx
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from pydantic import BaseModel
 import secrets
 
-from showcase_admin.app import config, database, auth, k8s_client
+from showcase_admin.app import config, database, auth, k8s_client, features as feature_registry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +35,11 @@ if config.ADMIN_AUTHENTICATION_ENABLED:
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend')
 os.makedirs(frontend_dir, exist_ok=True)
 
+# Mirror each feature's playroom UI (features/<name>/<frontend_dir>/) into the served
+# static root. Runs at import so dev, tests, and the container image stay consistent
+# and submodule features' UIs are served with no manual copy step.
+feature_registry.aggregate_frontends(os.path.join(frontend_dir, 'features'))
+
 # Serve Frontend SPA UI
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -56,64 +59,32 @@ app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 # ----------------------------------------------------------------------
 # SERVE DEDICATED MODULAR PLAYROOM UIs
 # ----------------------------------------------------------------------
-@app.get("/sandbox/", response_class=HTMLResponse)
-async def serve_sandbox_playroom():
-    sandbox_html = os.path.join(frontend_dir, 'features', 'agent-sandbox', 'index.html')
-    if os.path.exists(sandbox_html):
-        response = FileResponse(sandbox_html)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        return response
-    raise HTTPException(status_code=404, detail="Sandbox playroom file not found.")
+# Playroom routes are registered dynamically from each feature's feature.yaml
+# descriptor (paths.playroom_slug), so adding a feature needs no Hub code change.
+def _make_playroom_handler(feature_name: str):
+    """Build a FastAPI handler serving the playroom index.html for one feature."""
+    async def serve_playroom() -> FileResponse:
+        playroom_html = os.path.join(frontend_dir, 'features', feature_name, 'index.html')
+        if os.path.exists(playroom_html):
+            response = FileResponse(playroom_html)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+        raise HTTPException(status_code=404, detail=f"Playroom for '{feature_name}' not found.")
+    return serve_playroom
 
-@app.get("/inference/", response_class=HTMLResponse)
-async def serve_inference_playroom():
-    inference_html = os.path.join(frontend_dir, 'features', 'gpu-inference', 'index.html')
-    if os.path.exists(inference_html):
-        response = FileResponse(inference_html)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        return response
-    raise HTTPException(status_code=404, detail="Inference playroom file not found.")
+for _slug, _feature_name in feature_registry.playroom_routes():
+    app.add_api_route(
+        f"/{_slug}/",
+        _make_playroom_handler(_feature_name),
+        methods=["GET"],
+        response_class=HTMLResponse,
+        name=f"serve_{_feature_name}_playroom",
+    )
 
-@app.get("/gateway/", response_class=HTMLResponse)
-async def serve_inference_gateway_playroom():
-    gateway_html = os.path.join(frontend_dir, 'features', 'inference-gateway', 'index.html')
-    if os.path.exists(gateway_html):
-        response = FileResponse(gateway_html)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        return response
-    raise HTTPException(status_code=404, detail="Inference Gateway playroom file not found.")
-
-# Available Features Metadata
-AVAILABLE_SHOWCASES = {
-    "agent-sandbox": {
-        "name": "agent-sandbox",
-        "title": "GKE Agent Sandbox",
-        "description": "Orchestrate secure, sub-second isolated gVisor agent environments executing dynamic untrusted user instructions safely mapped via GKE Workload Identity.",
-        "gke_features": ["gVisor Isolation Runtime", "SandboxTemplate Custom Resources", "Workload Identity Federation", "SandboxWarmPool Probes"]
-    },
-    "gpu-inference": {
-        "name": "gpu-inference",
-        "title": "vLLM GPU Model Inference",
-        "description": "Serve self-hosted open-source Large Language Models (e.g., Gemma 2B) leveraging GKE Spot Nvidia L4 GPUs and GCSFuse volume mapping to mount bucket checkpoints.",
-        "gke_features": ["Nvidia L4 Spot GPU Pools", "GCS FUSE CSI Storage Driver", "Gateway Ingress API routing", "Dynamic GPU cluster scaling"]
-    },
-    "inference-gateway": {
-        "name": "inference-gateway",
-        "title": "GKE Inference Gateway (llm-d)",
-        "description": "Intelligent AI-aware L7 load balancing powered by Envoy and Endpoint Picker (EPP) sidecars. Optimizes Time-to-First-Token via Prefix-Cache Aware Routing across disaggregated vLLM model server pools.",
-        "gke_features": ["InferencePool & EPP Sidecars", "Prefix-Cache Aware Routing", "KV Cache & Queue Length Metrics", "Regional Internal Gateway (gke-l7-rilb)"]
-    }
-}
-
-def get_feature_namespace(db: Session, feature_name: str) -> str:
-    showcase = db.query(database.ShowcaseModel).filter_by(name=feature_name).first()
-    return showcase.namespace if showcase and showcase.namespace else f"gke-showcase-{feature_name}"
+# Available Features Metadata (derived from features/*/feature.yaml — see feature.md)
+AVAILABLE_SHOWCASES = feature_registry.available_showcases()
 
 # ----------------------------------------------------------------------
 # CORE BACKEND ADMINISTRATIVE APIs
@@ -265,90 +236,16 @@ async def get_logs(name: str, db: Session = Depends(database.get_db)):
     return {"name": name, "namespace": target_namespace, "logs": logs}
 
 # ----------------------------------------------------------------------
-# DEDICATED SHOWCASE DYNAMIC PLAYROOM REST APIs
+# PER-FEATURE DATA-PLANE ROUTERS (each feature owns its own proxy)
 # ----------------------------------------------------------------------
-
-# --- FEATURE 1: AGENT SANDBOX CLAIMS MANAGEMENT ---
-@app.get("/api/sandboxes", dependencies=api_dependencies)
-async def list_sandbox_claims(db: Session = Depends(database.get_db)):
-    ns = get_feature_namespace(db, "agent-sandbox")
-    claims = await k8s_client.list_sandbox_claims(ns)
-    return claims
-
-@app.post("/api/sandboxes", dependencies=api_dependencies)
-async def create_sandbox_claim(db: Session = Depends(database.get_db)):
-    ns = get_feature_namespace(db, "agent-sandbox")
-    claim_id = f"sb-{uuid.uuid4().hex[:8]}"
-    claim = await k8s_client.create_sandbox_claim(ns, claim_id)
-    return claim
-
-@app.delete("/api/sandboxes/{claim_id}", dependencies=api_dependencies)
-async def delete_sandbox_claim(claim_id: str, db: Session = Depends(database.get_db)):
-    ns = get_feature_namespace(db, "agent-sandbox")
-    await k8s_client.delete_sandbox_claim(ns, claim_id)
-    return {"status": "released", "id": claim_id}
-
-@app.post("/api/sandboxes/{claim_id}/message", dependencies=api_dependencies)
-async def message_sandbox(
-    claim_id: str,
-    body: dict = Body(...),
-    db: Session = Depends(database.get_db)
-):
-    ns = get_feature_namespace(db, "agent-sandbox")
-    prompt = body.get("message", "")
-    provider = body.get("provider", "vertex") # 'vertex' or 'vllm'
-    
-    vllm_ns = get_feature_namespace(db, "gpu-inference")
-    
-    reply = await k8s_client.message_sandbox_claim(
-        namespace=ns,
-        claim_id=claim_id,
-        message=prompt,
-        provider=provider,
-        vllm_namespace=vllm_ns
+# Every feature ships its own FastAPI router (declared via hub_router in
+# feature.yaml). The Hub mounts each one under /api/features/<name>, so a feature's
+# data-plane API is fully independent — added/removed with the feature, namespaced
+# so features can never collide, and requiring zero edits to this file.
+for _feature_name, _feature_router in feature_registry.load_routers().items():
+    app.include_router(
+        _feature_router,
+        prefix=f"/api/features/{_feature_name}",
+        tags=[_feature_name],
+        dependencies=api_dependencies,
     )
-    return {"reply": reply}
-
-@app.post("/api/sandboxes/{claim_id}/quote", dependencies=api_dependencies)
-async def quote_sandbox(
-    claim_id: str,
-    body: dict = Body(default={"provider": "vertex"}),
-    db: Session = Depends(database.get_db)
-):
-    ns = get_feature_namespace(db, "agent-sandbox")
-    provider = body.get("provider", "vertex")
-    vllm_ns = get_feature_namespace(db, "gpu-inference")
-    
-    quote = await k8s_client.quote_sandbox_claim(
-        namespace=ns,
-        claim_id=claim_id,
-        provider=provider,
-        vllm_namespace=vllm_ns
-    )
-    return {"quote": quote}
-
-# --- FEATURE 2: GPU INFERENCE MODEL PLAYS ---
-@app.post("/api/inference/chat", dependencies=api_dependencies)
-async def model_garden_inference(
-    body: dict = Body(...),
-    db: Session = Depends(database.get_db)
-):
-    prompt = body.get("prompt", "")
-    ns = get_feature_namespace(db, "gpu-inference")
-    
-    reply = await k8s_client.query_gpu_inference_server(ns, prompt)
-    return {"reply": reply}
-
-# --- FEATURE 3: ADVANCED GKE INFERENCE GATEWAY ---
-class GatewayRequestPayload(BaseModel):
-    prompt: str
-    priority: str = "default"
-
-@app.post("/api/gateway/request", dependencies=api_dependencies)
-async def gateway_request_api(
-    body: GatewayRequestPayload,
-    db: Session = Depends(database.get_db)
-):
-    ns = get_feature_namespace(db, "inference-gateway")
-    reply = await k8s_client.query_inference_gateway(ns, body.prompt, body.priority)
-    return {"reply": reply}

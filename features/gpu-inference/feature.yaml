@@ -1,0 +1,39 @@
+# Showcase feature descriptor — see /feature.md for the full contract.
+name: gpu-inference
+title: vLLM GPU Model Inference
+description: >-
+  Serve self-hosted open-source Large Language Models (e.g., Gemma 2B) leveraging
+  GKE Spot Nvidia L4 GPUs and GCSFuse volume mapping to mount bucket checkpoints.
+gke_features:
+  - Nvidia L4 Spot GPU Pools
+  - GCS FUSE CSI Storage Driver
+  - Gateway Ingress API routing
+  - Dynamic GPU cluster scaling
+
+paths:
+  infra_dir: infra
+  # The Hub playroom UI lives in its own dir; features/gpu-inference/frontend/ is the
+  # separate UI baked into the gpu-inference app container itself.
+  frontend_dir: hub-playroom
+  playroom_slug: inference
+
+deployment_name: gpu-inference-deployment
+gateway:
+  name: gpu-inference-gateway
+  class: gke-l7-gxlb
+
+build:
+  - image: gpu-inference-playroom
+    context: .
+    dockerfile: app/Dockerfile
+
+template_vars:
+  - NAMESPACE
+  - PROJECT_NAME
+  - REGION
+  - ARTIFACT_REGISTRY_REPO
+  - GCS_MODEL_BUCKET
+
+# This feature's own data-plane router (its independent proxy). The Hub imports
+# <module>:<attr> and mounts it at /api/features/gpu-inference.
+hub_router: "hub_router:router"
