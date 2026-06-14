@@ -288,10 +288,11 @@ git submodule add https://github.com/<you>/<your-feature-repo>.git features/<nam
 git commit -m "feat(features): add <name> as submodule"
 ```
 
-Anyone cloning the Hub must initialize submodules: `git submodule update --init
---recursive`. To update the demo later: commit in the feature repo, then bump the
-pointer in the Hub (`git -C features/<name> pull && git add features/<name> && git
-commit`). The feature repo keeps its own `setup_infra.sh`/`deploy_app.sh` for
+`build_infra.sh` and `scripts/build_and_push.sh` auto-run `git submodule update --init
+--recursive`, so a fresh checkout deploys without remembering it (run it manually only if
+you work with the files before invoking the scripts). To update the demo later: commit in
+the feature repo, then bump the pointer in the Hub (`git -C features/<name> pull && git
+add features/<name> && git commit`). The feature repo keeps its own `setup_infra.sh`/`deploy_app.sh` for
 standalone use; the Hub ignores those and drives the feature through `feature.yaml`.
 
 ### Converting local → external later
