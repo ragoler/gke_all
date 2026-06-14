@@ -201,17 +201,23 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                     if e.status != 409:
                         raise e
                 
-                feature_infra_dir = os.path.join(
+                feature_root = os.path.join(
                     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                    'features', name, 'infra'
+                    'features', name
                 )
-                
-                if os.path.exists(feature_infra_dir):
+
+                # A feature may keep its manifests in one dir (paths.infra_dir) or several
+                # (paths.infra_dirs), so it mounts into the Hub without being restructured.
+                feature_infra_dirs = [
+                    os.path.join(feature_root, d) for d in feature_registry.infra_dirs(name)
+                ]
+
+                if any(os.path.exists(d) for d in feature_infra_dirs):
                     vllm_ns = "gke-showcase-gpu-inference"
                     if target_ns.startswith("gke-showcase-agent-sandbox-"):
                         uuid_suffix = target_ns[len("gke-showcase-agent-sandbox-"):]
                         vllm_ns = f"gke-showcase-gpu-inference-{uuid_suffix}"
-                    
+
                     # Feature-declared defaults fill variables the Hub doesn't supply
                     # (e.g. GATEWAY_NAME, REPLICAS); Hub standard vars below take precedence.
                     vars_dict = {
@@ -224,14 +230,17 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                         "OPENAI_API_BASE": llm_service_endpoint if (llm_service_endpoint and llm_provider in ("vllm", "custom")) else f"http://vllm-service.{vllm_ns}.svc.cluster.local:8000/v1",
                         "ARTIFACT_REGISTRY_REPO": config.ARTIFACT_REGISTRY_REPO
                     }
-                    
-                    for filename in sorted(os.listdir(feature_infra_dir)):
-                        if filename.endswith(".yaml") or filename.endswith(".yml"):
-                            filepath = os.path.join(feature_infra_dir, filename)
-                            with open(filepath, 'r') as f:
-                                raw_content = f.read()
-                            expanded_content = expand_template(raw_content, vars_dict)
-                            await apply_yaml_manifests(target_ns, expanded_content)
+
+                    for infra_dir in feature_infra_dirs:
+                        if not os.path.isdir(infra_dir):
+                            continue
+                        for filename in sorted(os.listdir(infra_dir)):
+                            if filename.endswith(".yaml") or filename.endswith(".yml"):
+                                filepath = os.path.join(infra_dir, filename)
+                                with open(filepath, 'r') as f:
+                                    raw_content = f.read()
+                                expanded_content = expand_template(raw_content, vars_dict)
+                                await apply_yaml_manifests(target_ns, expanded_content)
                             
                 # Active readiness polling loop using AppsV1Api.read_namespaced_deployment
                 apps_v1 = client.AppsV1Api(api_client)

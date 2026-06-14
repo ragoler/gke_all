@@ -80,6 +80,9 @@ gke_features:                    # bullet chips on the card
 # Where things live in THIS repo (relative paths)
 paths:
   infra_dir: infra               # per-namespace manifests applied on deploy
+  # OR, if your manifests span several dirs (keep your own layout), use a list instead
+  # of infra_dir — all are applied in order:
+  # infra_dirs: [infra, k8s]
   cluster_dir: cluster           # OPTIONAL cluster-scoped prereqs (see §5)
   frontend_dir: frontend         # served as the playroom UI; omit if no UI
   playroom_slug: my-feature      # Hub serves the UI at /my-feature/
@@ -128,8 +131,9 @@ feature, that's a sign the descriptor schema should grow a field instead — rai
 ## 3. Infra manifests (`infra/`)
 
 Manifests are plain Kubernetes YAML with `${VAR}` placeholders. On deploy the Hub
-creates the target namespace, expands variables, and applies every `*.yaml` in
-`infra_dir` (sorted by filename). On teardown it deletes the whole namespace.
+creates the target namespace, expands variables, and applies every `*.yaml` in each
+declared dir (`infra_dir`, or every dir in `infra_dirs` in order), sorted by filename.
+On teardown it deletes the whole namespace.
 
 **Variables the Hub always provides:**
 

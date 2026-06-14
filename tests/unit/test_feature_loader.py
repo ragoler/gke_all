@@ -46,6 +46,15 @@ def test_url_map_and_playroom_routes_derive_from_slug():
     assert routes["inference"] == "gpu-inference"
 
 
+def test_infra_dirs_defaults_and_overrides():
+    """infra_dirs() returns the declared dirs, defaulting to ['infra']."""
+    # Local features use the single-dir form.
+    assert feature_registry.infra_dirs("agent-sandbox") == ["infra"]
+    assert feature_registry.infra_dirs("gpu-inference") == ["infra"]
+    # Unknown features still get the safe default.
+    assert feature_registry.infra_dirs("does-not-exist") == ["infra"]
+
+
 def test_template_defaults_returns_mapping():
     """template_defaults() returns a (possibly empty) string->string map per feature."""
     defaults = feature_registry.template_defaults("agent-sandbox")
