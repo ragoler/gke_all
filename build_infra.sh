@@ -165,6 +165,16 @@ while IFS=$'\t' read -r feature_name cluster_dir; do
   done
 done < <("$PY" scripts/feature_cluster_dirs.py)
 
+# Apply per-feature cluster-scoped kustomize refs (declared via cluster_kustomize in
+# feature.yaml) — e.g. CRD bundles like the gateway-api-inference-extension. Installed
+# once per cluster. Features without any contribute nothing here (no-op).
+echo "Applying per-feature cluster-scoped kustomize refs..."
+while IFS=$'\t' read -r feature_name kustomize_ref; do
+  [ -z "$kustomize_ref" ] && continue
+  echo "  -> [$feature_name] kubectl apply -k ${kustomize_ref}"
+  kubectl apply -k "$kustomize_ref"
+done < <("$PY" scripts/feature_cluster_kustomize.py)
+
 # Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")

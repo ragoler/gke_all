@@ -164,6 +164,23 @@ def infra_dirs(name: str) -> list[str]:
     return [str(single)]
 
 
+def cluster_kustomize(name: str) -> list[str]:
+    """Return cluster-scoped kustomize refs a feature needs installed at bootstrap.
+
+    Declared as a top-level ``cluster_kustomize`` list in feature.yaml — e.g. a CRD
+    bundle like the gateway-api-inference-extension. build_infra.sh applies each via
+    ``kubectl apply -k <ref>`` once per cluster. Empty if none declared.
+
+    Args:
+        name: The feature's registered name.
+
+    Returns:
+        Ordered list of kustomize references (URLs or paths).
+    """
+    refs = (FEATURES.get(name) or {}).get("cluster_kustomize") or []
+    return [str(r) for r in refs] if isinstance(refs, list) else []
+
+
 def template_defaults(name: str) -> dict[str, str]:
     """Return a feature's declared manifest template defaults (``template_defaults``).
 

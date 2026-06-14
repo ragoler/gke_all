@@ -44,6 +44,22 @@ def test_dynamic_variable_replacement():
     assert 'value: "FALSE"' in res_custom
     assert 'value: "https://api.custom-llm.ai/v1"' in res_custom
 
+def test_composed_variable_expansion():
+    """Composed values (a var whose value references other vars) resolve to a fixed point."""
+    raw_content = 'image: "${REGISTRY}/gateway-client-app:${IMAGE_TAG}"\n'
+    vars_dict = {
+        "REGISTRY": "${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}",
+        "IMAGE_TAG": "latest",
+        "REGION": "us-west1",
+        "PROJECT_NAME": "my-proj",
+        "ARTIFACT_REGISTRY_REPO": "gke-showcase-repo",
+    }
+    res = expand_template(raw_content, vars_dict)
+    assert res.strip() == 'image: "us-west1-docker.pkg.dev/my-proj/gke-showcase-repo/gateway-client-app:latest"'
+    # Unknown variables are left intact (and iteration still converges).
+    assert expand_template("a: ${UNSET}\n", {}) == "a: ${UNSET}\n"
+
+
 @pytest.mark.anyio
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
 @mock.patch("showcase_admin.app.k8s_client.init_k8s_connection")

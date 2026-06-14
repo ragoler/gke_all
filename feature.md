@@ -110,10 +110,20 @@ template_vars:
 
 # Default values for any variables the Hub does NOT supply (e.g. an external demo's
 # own GATEWAY_NAME / REPLICAS / MODEL_NAME). These fill in at deploy time; Hub standard
-# variables (NAMESPACE, PROJECT_NAME, …) always take precedence over them.
+# variables (NAMESPACE, PROJECT_NAME, …) always take precedence over them. Values may
+# themselves reference other variables — they resolve to a fixed point, so you can keep
+# an existing image ref like ${REGISTRY}/app:${IMAGE_TAG} unchanged and define REGISTRY
+# here in terms of the Hub's REGION/PROJECT_NAME/ARTIFACT_REGISTRY_REPO.
 template_defaults:
   GATEWAY_NAME: my-feature-gateway
   REPLICAS: "2"
+  REGISTRY: "${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"
+  IMAGE_TAG: latest
+
+# OPTIONAL — cluster-scoped kustomize refs (e.g. CRD bundles) installed once per
+# cluster at bootstrap via `kubectl apply -k`. Use for CRDs your manifests depend on.
+cluster_kustomize:
+  - https://github.com/example/crds/config/crd?ref=v1.0.0
 
 # This feature's own data-plane router (its independent "proxy"). The Hub imports
 # "<module>:<attr>" from this directory and mounts the FastAPI APIRouter under
@@ -189,6 +199,12 @@ Put them in `cluster_dir`. The Hub applies them at **cluster bootstrap**
 (`build_infra.sh`), not on every feature deploy. Declare them in `feature.yaml` via
 `paths.cluster_dir`. If your demo's standalone `setup_infra.sh` provisions these, mirror
 the same YAML into `cluster/` so the Hub path stays IaC and reproducible.
+
+For CRD bundles installed via kustomize (rather than local YAML), declare a top-level
+`cluster_kustomize:` list of refs; `build_infra.sh` runs `kubectl apply -k <ref>` for
+each at bootstrap. Note: the Hub also routes a `ComputeClass` found in a per-namespace
+`infra_dir` to the cluster-scoped API automatically, so a demo that keeps its
+ComputeClass alongside its other manifests still works without a separate `cluster_dir`.
 
 > This is the one structural gap between a typical standalone demo (which provisions
 > cluster + namespace together in `setup_infra.sh`) and a Hub feature (which assumes a

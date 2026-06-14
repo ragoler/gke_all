@@ -25,12 +25,33 @@ async def init_k8s_connection():
     except Exception:
         await k8s_config.load_kube_config()
 
-def expand_template(content: str, vars_dict: dict) -> str:
+def expand_template(content: str, vars_dict: dict, max_passes: int = 5) -> str:
+    """Substitute ${VAR} placeholders, resolving composed values to a fixed point.
+
+    Iterates so a variable whose value itself references other variables resolves too
+    (e.g. REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"
+    expands fully). Unknown variables are left untouched, so iteration converges; the
+    pass cap is just a safety stop. Single-level templates resolve in one pass exactly
+    as before.
+
+    Args:
+        content: Manifest text containing ${VAR} placeholders.
+        vars_dict: Variable name -> value substitutions.
+        max_passes: Maximum substitution passes before stopping.
+
+    Returns:
+        The fully expanded text.
+    """
     pattern = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
     def replacer(match):
         var_name = match.group(1)
         return vars_dict.get(var_name, match.group(0))
-    return pattern.sub(replacer, content)
+    for _ in range(max_passes):
+        expanded = pattern.sub(replacer, content)
+        if expanded == content:
+            break
+        content = expanded
+    return content
 
 # Asynchronously run gcloud shell commands to manage GKE capabilities dynamically
 async def run_gcloud_cmd(args: list) -> str:

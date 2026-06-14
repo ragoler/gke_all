@@ -55,6 +55,12 @@ def test_infra_dirs_defaults_and_overrides():
     assert feature_registry.infra_dirs("does-not-exist") == ["infra"]
 
 
+def test_cluster_kustomize_defaults_empty():
+    """cluster_kustomize() returns [] when a feature declares none (the current case)."""
+    assert feature_registry.cluster_kustomize("agent-sandbox") == []
+    assert feature_registry.cluster_kustomize("does-not-exist") == []
+
+
 def test_template_defaults_returns_mapping():
     """template_defaults() returns a (possibly empty) string->string map per feature."""
     defaults = feature_registry.template_defaults("agent-sandbox")
