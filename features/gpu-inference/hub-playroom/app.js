@@ -1,13 +1,13 @@
 // ==============================================================================
-// GKE Advanced Inference Gateway - Playground Controller
+// vLLM GPU Inference - Playground Controller (Static / features)
 // ==============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
+    // DOM Elements
     const chatBox = document.getElementById("chat-box");
     const userInput = document.getElementById("user-input");
-    const prioritySelect = document.getElementById("priority-select");
     const btnSendQuery = document.getElementById("btn-send-query");
-    const metricGatewayIp = document.getElementById("metric-gateway-ip");
+    const metricModelName = document.getElementById("metric-model-name");
 
     async function fetchWithAuth(url, options = {}) {
         const jwt = localStorage.getItem("admin_jwt");
@@ -18,43 +18,46 @@ document.addEventListener("DOMContentLoaded", () => {
         return fetch(url, { ...options, headers });
     }
 
-    async function fetchGatewayInfo() {
+    // Fetch active model info
+    async function fetchModelInfo() {
         try {
             const response = await fetchWithAuth("/api/showcases");
             if (response.ok) {
                 const showcases = await response.json();
-                const gatewayMeta = showcases.find(s => s.name === "inference-gateway");
-                if (gatewayMeta && gatewayMeta.status === "ACTIVE") {
-                    metricGatewayIp.textContent = gatewayMeta.namespace ? `Active in ${gatewayMeta.namespace}` : "Assigned & Active";
+                // Check if we have custom model metadata or custom GCS buckets
+                const hasInference = showcases.find(s => s.name === "gpu-inference");
+                if (hasInference && hasInference.namespace) {
+                    // Load metadata settings if applicable
                 }
             }
         } catch (err) {
-            console.error("Failed to load gateway status", err);
+            console.error("Failed to load model metadata", err);
         }
     }
 
+    // Send Chat message prompt
     window.sendQuery = async () => {
         const text = userInput.value.trim();
         if (!text) return;
 
-        const priority = prioritySelect.value;
-        appendMessage(`[${priority.toUpperCase()}] ${text}`, "user");
+        // Append user message
+        appendMessage(text, "user");
         userInput.value = "";
 
         const aiDiv = appendMessage("...", "ai");
         btnSendQuery.disabled = true;
 
         try {
-            const response = await fetchWithAuth("/api/gateway/request", {
+            const response = await fetchWithAuth("/api/features/gpu-inference/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: text, priority: priority })
+                body: JSON.stringify({ prompt: text })
             });
-            if (!response.ok) throw new Error("Failed to query Inference Gateway backend.");
+            if (!response.ok) throw new Error("Failed to establish connection to model server.");
             const data = await response.json();
             aiDiv.textContent = data.reply;
         } catch (err) {
-            aiDiv.textContent = `[ERROR] Request failed: ${err.message}`;
+            aiDiv.textContent = `[ERROR] Completion failed: ${err.message}`;
         } finally {
             btnSendQuery.disabled = false;
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -70,5 +73,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return div;
     }
 
-    fetchGatewayInfo();
+    // Bootstrap Setup
+    fetchModelInfo();
 });

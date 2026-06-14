@@ -16,14 +16,22 @@ REGION=${REGION:-"us-west1"}
 REPO_NAME=${ARTIFACT_REGISTRY_REPO:-"gke-showcase-repo"}
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
+# Python interpreter for reading feature descriptors (prefer the repo venv, which has PyYAML)
+PY="python3"
+[ -x ".venv/bin/python" ] && PY=".venv/bin/python"
+
 # Help menu
 show_help() {
   echo "GKE Showcase Hub Container Builder Utility"
   echo "Usage: ./scripts/build_and_push.sh [options]"
   echo ""
   echo "Options:"
-  echo "  --feature <name>  Build only a specific container: admin, sandbox-demo, sandbox-router, gpu-playroom, inference-gateway"
+  echo "  --feature <name>  Build only 'admin', a feature name, or a specific image name."
+  echo "                    Feature images are discovered from features/*/feature.yaml."
   echo "  --help            Display this menu"
+  echo ""
+  echo "Discoverable feature build targets (feature -> image):"
+  "$PY" scripts/feature_builds.py | awk -F'\t' '{printf "  %-16s -> %s\n", $1, $2}'
 }
 
 # Parse command-line args
@@ -52,7 +60,7 @@ gcloud artifacts repositories create "$REPO_NAME" \
 echo "Authenticating Docker daemon to Artifact Registry..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-# Build and push target containers
+# The Admin Hub container is the platform itself (not a feature), so it stays explicit.
 build_admin() {
   echo ">>> Building Showcase Admin Dashboard..."
   docker build -t "${REGISTRY}/showcase-admin:latest" -f showcase_admin/Dockerfile .
@@ -60,54 +68,66 @@ build_admin() {
   docker push "${REGISTRY}/showcase-admin:latest"
 }
 
-build_sandbox_demo() {
-  echo ">>> Building Sandbox Demo Workload container..."
-  docker build -t "${REGISTRY}/agent-sandbox-demo:latest" ./features/agent-sandbox/demo-app
-  echo ">>> Pushing Sandbox Demo Workload container..."
-  docker push "${REGISTRY}/agent-sandbox-demo:latest"
+# Build one feature image. Entries with a git source are cloned and built from upstream;
+# otherwise the build context is resolved inside the feature directory.
+# Args: feature_name image context dockerfile git
+build_feature_image() {
+  local fname="$1" image="$2" context="$3" dockerfile="$4" git_url="$5"
+  local tag="${REGISTRY}/${image}:latest"
+
+  if [ "$git_url" != "-" ]; then
+    local tmp; tmp=$(mktemp -d)
+    echo ">>> [$fname] Cloning ${git_url} to build ${image}..."
+    git clone --depth 1 "$git_url" "$tmp"
+    if [ "$dockerfile" != "-" ]; then
+      docker build -t "$tag" -f "${tmp}/${dockerfile}" "${tmp}/${context}"
+    else
+      docker build -t "$tag" "${tmp}/${context}"
+    fi
+    rm -rf "$tmp"
+  else
+    local feature_dir="features/${fname}"
+    echo ">>> [$fname] Building ${image}..."
+    if [ "$dockerfile" != "-" ]; then
+      docker build -t "$tag" -f "${feature_dir}/${dockerfile}" "${feature_dir}/${context}"
+    else
+      docker build -t "$tag" "${feature_dir}/${context}"
+    fi
+  fi
+  echo ">>> [$fname] Pushing ${image}..."
+  docker push "$tag"
 }
 
-build_sandbox_router() {
-  echo ">>> Building Sandbox Router container..."
-  # Clones and builds the sandbox router from the official upstream Kubernetes-SIGs repository
-  TMP_DIR=$(mktemp -d)
-  echo "Cloning upstream kubernetes-sigs/agent-sandbox repo into ${TMP_DIR}..."
-  git clone https://github.com/kubernetes-sigs/agent-sandbox.git "$TMP_DIR"
-  
-  docker build -t "${REGISTRY}/agent-sandbox-router:latest" "${TMP_DIR}/clients/python/agentic-sandbox-client/sandbox-router"
-  docker push "${REGISTRY}/agent-sandbox-router:latest"
-  rm -rf "$TMP_DIR"
-  echo ">>> Sandbox Router container pushed successfully."
-}
+# Iterate every build target declared across features/*/feature.yaml. When TARGET_FEATURE
+# is set it filters by feature name OR image name; otherwise all features build.
+build_features() {
+  local matched=0
+  while IFS=$'\t' read -r fname image context dockerfile git_url; do
+    [ -z "$image" ] && continue
+    if [ -n "$TARGET_FEATURE" ] && [ "$TARGET_FEATURE" != "$fname" ] && [ "$TARGET_FEATURE" != "$image" ]; then
+      continue
+    fi
+    matched=1
+    build_feature_image "$fname" "$image" "$context" "$dockerfile" "$git_url"
+  done < <("$PY" scripts/feature_builds.py)
 
-build_gpu_playroom() {
-  echo ">>> Building GPU Inference Playroom app..."
-  docker build -t "${REGISTRY}/gpu-inference-playroom:latest" -f ./features/gpu-inference/app/Dockerfile ./features/gpu-inference
-  echo ">>> Pushing GPU Inference Playroom app..."
-  docker push "${REGISTRY}/gpu-inference-playroom:latest"
-}
-
-build_inference_gateway() {
-  echo ">>> Inference Gateway utilizes official pre-built Google Cloud disaggregated container images (vLLM and EPP). No custom build required."
+  if [ -n "$TARGET_FEATURE" ] && [ "$matched" -eq 0 ]; then
+    echo "Error: no build target matched feature/image '$TARGET_FEATURE'."
+    show_help
+    exit 1
+  fi
 }
 
 # Orchestrate builds
 if [ -n "$TARGET_FEATURE" ]; then
-  case $TARGET_FEATURE in
-    admin) build_admin ;;
-    sandbox-demo) build_sandbox_demo ;;
-    sandbox-router) build_sandbox_router ;;
-    gpu-playroom) build_gpu_playroom ;;
-    inference-gateway) build_inference_gateway ;;
-    *) echo "Unsupported feature target: $TARGET_FEATURE"; exit 1 ;;
-  esac
+  if [ "$TARGET_FEATURE" = "admin" ]; then
+    build_admin
+  else
+    build_features
+  fi
 else
-  # Build all by default
   build_admin
-  build_sandbox_demo
-  build_sandbox_router
-  build_gpu_playroom
-  build_inference_gateway
+  build_features
 fi
 
 echo "======================================================================"

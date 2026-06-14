@@ -41,8 +41,10 @@ spec:
         # Optional variables for inter-showcase local vLLM routing
         - name: OPENAI_API_BASE
           value: "${OPENAI_API_BASE}"
+        # Must match the gpu-inference vLLM --served-model-name (the full gs:// MODEL_ID),
+        # otherwise the OpenAI-compatible /chat/completions call is rejected with "model does not exist".
         - name: MODEL_NAME
-          value: "codegemma-7b-it"
+          value: "gs://vertex-model-garden-public-us/codegemma/codegemma-7b-it"
         # API Key Fallback secret - configured as optional
         - name: GEMINI_API_KEY
           valueFrom:

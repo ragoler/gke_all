@@ -43,7 +43,7 @@ def test_api_authorized_get_showcases(client):
         response = client.get("/api/showcases", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
+        assert len(data) == 2
         assert data[0]["name"] == "agent-sandbox"
         assert data[0]["status"] == "DORMANT"
 
@@ -131,28 +131,28 @@ def test_api_sandbox_claims(client):
     app.dependency_overrides[verify_admin_credentials] = lambda: True
     try:
         # 1. Create claim
-        create_resp = client.post("/api/sandboxes")
+        create_resp = client.post("/api/features/agent-sandbox/sandboxes")
         assert create_resp.status_code == 200
         claim_data = create_resp.json()
         claim_id = claim_data["id"]
         
         # 2. List claims
-        list_resp = client.get("/api/sandboxes")
+        list_resp = client.get("/api/features/agent-sandbox/sandboxes")
         assert list_resp.status_code == 200
         assert any(item["id"] == claim_id for item in list_resp.json())
         
         # 3. Message claim
-        msg_resp = client.post(f"/api/sandboxes/{claim_id}/message", json={"message": "hello test", "provider": "vertex"})
+        msg_resp = client.post(f"/api/features/agent-sandbox/sandboxes/{claim_id}/message", json={"message": "hello test", "provider": "vertex"})
         assert msg_resp.status_code == 200
         assert "Recieved your prompt 'hello test'" in msg_resp.json()["reply"]
         
         # 4. Quote claim
-        quote_resp = client.post(f"/api/sandboxes/{claim_id}/quote", json={"provider": "vertex"})
+        quote_resp = client.post(f"/api/features/agent-sandbox/sandboxes/{claim_id}/quote", json={"provider": "vertex"})
         assert quote_resp.status_code == 200
         assert "predict the future" in quote_resp.json()["quote"]
         
         # 5. Delete claim
-        del_resp = client.delete(f"/api/sandboxes/{claim_id}")
+        del_resp = client.delete(f"/api/features/agent-sandbox/sandboxes/{claim_id}")
         assert del_resp.status_code == 200
         assert del_resp.json()["id"] == claim_id
     finally:
@@ -162,7 +162,7 @@ def test_api_inference_chat(client):
     from showcase_admin.app.auth import verify_admin_credentials
     app.dependency_overrides[verify_admin_credentials] = lambda: True
     try:
-        resp = client.post("/api/inference/chat", json={"prompt": "What is AI?"})
+        resp = client.post("/api/features/gpu-inference/chat", json={"prompt": "What is AI?"})
         assert resp.status_code == 200
         assert "MOCK INFERENCE" in resp.json()["reply"]
     finally:

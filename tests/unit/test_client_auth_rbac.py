@@ -5,9 +5,8 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 def test_frontend_features_client_auth():
     js_files = [
-        os.path.join(root_dir, "showcase_admin", "frontend", "features", "agent-sandbox.js"),
-        os.path.join(root_dir, "showcase_admin", "frontend", "features", "gpu-inference.js"),
-        os.path.join(root_dir, "showcase_admin", "frontend", "features", "inference-gateway.js"),
+        os.path.join(root_dir, "features", "agent-sandbox", "frontend", "app.js"),
+        os.path.join(root_dir, "features", "gpu-inference", "hub-playroom", "app.js"),
     ]
     
     for js_file in js_files:

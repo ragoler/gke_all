@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Fetch active claims from Admin backend
     async function fetchClaims() {
         try {
-            const response = await fetchWithAuth("/api/sandboxes");
+            const response = await fetchWithAuth("/api/features/agent-sandbox/sandboxes");
             if (!response.ok) throw new Error("Failed to load claimed sandboxes.");
             const data = await response.json();
             activeClaims = data;
@@ -102,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnClaimSandbox.disabled = true;
         
         try {
-            const response = await fetchWithAuth("/api/sandboxes", {
+            const response = await fetchWithAuth("/api/features/agent-sandbox/sandboxes", {
                 method: "POST"
             });
             if (!response.ok) throw new Error("Failed to allocate sandbox claim.");
@@ -120,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.deleteClaim = async (id) => {
         
         try {
-            const response = await fetchWithAuth(`/api/sandboxes/${id}`, {
+            const response = await fetchWithAuth(`/api/features/agent-sandbox/sandboxes/${id}`, {
                 method: "DELETE"
             });
             if (!response.ok) throw new Error("Failed to release sandbox claim.");
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
-            const response = await fetchWithAuth(`/api/sandboxes/${id}/message`, {
+            const response = await fetchWithAuth(`/api/features/agent-sandbox/sandboxes/${id}/message`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: text, provider: provider })
@@ -165,7 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const provider = document.getElementById(`provider-${id}`).value;
         
         try {
-            const response = await fetchWithAuth(`/api/sandboxes/${id}/quote`, {
+            const response = await fetchWithAuth(`/api/features/agent-sandbox/sandboxes/${id}/quote`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ provider: provider })

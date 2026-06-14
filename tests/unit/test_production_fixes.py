@@ -18,7 +18,7 @@ def fixture_client():
 def test_unauthenticated_ui_access(client):
     """Verify that playroom UI endpoints are accessible without authentication."""
     with mock.patch("showcase_admin.app.config.ADMIN_AUTHENTICATION_ENABLED", True):
-        for route in ["/sandbox/", "/inference/", "/gateway/"]:
+        for route in ["/sandbox/", "/inference/"]:
             response = client.get(route)
             assert response.status_code == 200, f"Expected 200 for {route}, got {response.status_code}"
 

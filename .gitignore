@@ -5,6 +5,9 @@
 data/
 showcase_admin/data/
 
+# Aggregated playroom UIs (generated at startup from features/<name>/<frontend_dir>/)
+showcase_admin/frontend/features/
+
 # Python local directories
 __pycache__/
 *.py[cod]

@@ -66,3 +66,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_feature_namespace(db, feature_name: str) -> str:
+    """Resolve a feature's deployed namespace, falling back to the default convention.
+
+    Args:
+        db: Active SQLAlchemy session.
+        feature_name: The feature's registered name (e.g. "agent-sandbox").
+
+    Returns:
+        The feature's current namespace if deployed, else ``gke-showcase-<name>``.
+    """
+    showcase = db.query(ShowcaseModel).filter_by(name=feature_name).first()
+    return showcase.namespace if showcase and showcase.namespace else f"gke-showcase-{feature_name}"

@@ -1,0 +1,43 @@
+# Showcase feature descriptor — see /feature.md for the full contract.
+name: agent-sandbox
+title: GKE Agent Sandbox
+description: >-
+  Orchestrate secure, sub-second isolated gVisor agent environments executing
+  dynamic untrusted user instructions safely mapped via GKE Workload Identity.
+gke_features:
+  - gVisor Isolation Runtime
+  - SandboxTemplate Custom Resources
+  - Workload Identity Federation
+  - SandboxWarmPool Probes
+
+paths:
+  infra_dir: infra
+  frontend_dir: frontend
+  playroom_slug: sandbox
+
+deployment_name: sandbox-router-deployment
+gateway:
+  name: agent-sandbox-gateway
+  class: gke-l7-gxlb
+
+# Container images this feature needs. Entries with a `git` source are cloned and
+# built from that upstream repo; entries without build from this feature directory.
+build:
+  - image: agent-sandbox-demo
+    context: demo-app
+    dockerfile: demo-app/Dockerfile
+  - image: agent-sandbox-router
+    git: https://github.com/kubernetes-sigs/agent-sandbox.git
+    context: clients/python/agentic-sandbox-client/sandbox-router
+
+template_vars:
+  - NAMESPACE
+  - PROJECT_NAME
+  - REGION
+  - ARTIFACT_REGISTRY_REPO
+  - GOOGLE_GENAI_USE_VERTEXAI
+  - OPENAI_API_BASE
+
+# This feature's own data-plane router (its independent proxy). The Hub imports
+# <module>:<attr> and mounts it at /api/features/agent-sandbox.
+hub_router: "hub_router:router"
