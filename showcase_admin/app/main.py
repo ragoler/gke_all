@@ -124,10 +124,11 @@ async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depend
     for name, meta in AVAILABLE_SHOWCASES.items():
         db_item = status_map.get(name)
         
-        # Dynamically resolve reach out URL pointing to localhost or external Gateway IP
+        # Use the reach-out URL persisted at deploy time: an internal Hub playroom path
+        # for Hub-hosted features, or the feature's own external address for link-out ones.
         reach_out_url = None
         if db_item and db_item.status == "ACTIVE":
-            reach_out_url = k8s_client.FEATURE_URL_MAP.get(name)
+            reach_out_url = db_item.reach_out_url
             
         if db_item and db_item.status in ("DEPLOYING", "PROVISIONING"):
             background_tasks.add_task(k8s_client.check_and_update_showcase_status, name, db_item.namespace)

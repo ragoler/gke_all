@@ -3,6 +3,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from showcase_admin.app import features as feature_registry
@@ -46,6 +48,15 @@ def test_url_map_and_playroom_routes_derive_from_slug():
     assert routes["inference"] == "gpu-inference"
 
 
+def test_infra_dirs_defaults_and_overrides():
+    """infra_dirs() returns the declared dirs, defaulting to ['infra']."""
+    # Local features use the single-dir form.
+    assert feature_registry.infra_dirs("agent-sandbox") == ["infra"]
+    assert feature_registry.infra_dirs("gpu-inference") == ["infra"]
+    # Unknown features still get the safe default.
+    assert feature_registry.infra_dirs("does-not-exist") == ["infra"]
+
+
 def test_template_defaults_returns_mapping():
     """template_defaults() returns a (possibly empty) string->string map per feature."""
     defaults = feature_registry.template_defaults("agent-sandbox")
@@ -67,6 +78,28 @@ def test_aggregate_frontends_mirrors_playroom_uis(tmp_path):
     # Re-running is idempotent (overwrites cleanly, no error).
     feature_registry.aggregate_frontends(str(dest))
     assert (dest / "gpu-inference" / "app.js").is_file()
+
+
+def test_entrypoint_service_none_for_hosted_features():
+    """The in-repo features use a Hub-hosted playroom, not a link-out entrypoint."""
+    assert feature_registry.entrypoint_service("agent-sandbox") is None
+    assert feature_registry.entrypoint_service("gpu-inference") is None
+
+
+@pytest.mark.anyio
+async def test_resolve_reach_out_url_for_hosted_and_linkout():
+    """resolve_reach_out_url returns the Hub path for hosted features; link-out uses a URL."""
+    from showcase_admin.app import k8s_client, config
+
+    original = config.MODE
+    config.MODE = "MOCK"
+    try:
+        # Hosted feature -> internal Hub playroom path.
+        assert await k8s_client.resolve_reach_out_url("agent-sandbox", "ns") == "/sandbox/"
+        # A feature with neither a playroom nor an entrypoint resolves to None.
+        assert await k8s_client.resolve_reach_out_url("does-not-exist", "ns") is None
+    finally:
+        config.MODE = original
 
 
 def test_load_routers_returns_feature_routers():

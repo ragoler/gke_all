@@ -25,12 +25,33 @@ async def init_k8s_connection():
     except Exception:
         await k8s_config.load_kube_config()
 
-def expand_template(content: str, vars_dict: dict) -> str:
+def expand_template(content: str, vars_dict: dict, max_passes: int = 5) -> str:
+    """Substitute ${VAR} placeholders, resolving composed values to a fixed point.
+
+    Iterates so a variable whose value itself references other variables resolves too
+    (e.g. REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"
+    expands fully). Unknown variables are left untouched, so iteration converges; the
+    pass cap is just a safety stop. Single-level templates resolve in one pass exactly
+    as before.
+
+    Args:
+        content: Manifest text containing ${VAR} placeholders.
+        vars_dict: Variable name -> value substitutions.
+        max_passes: Maximum substitution passes before stopping.
+
+    Returns:
+        The fully expanded text.
+    """
     pattern = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
     def replacer(match):
         var_name = match.group(1)
         return vars_dict.get(var_name, match.group(0))
-    return pattern.sub(replacer, content)
+    for _ in range(max_passes):
+        expanded = pattern.sub(replacer, content)
+        if expanded == content:
+            break
+        content = expanded
+    return content
 
 # Asynchronously run gcloud shell commands to manage GKE capabilities dynamically
 async def run_gcloud_cmd(args: list) -> str:
@@ -67,6 +88,39 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
     elif "inference" in namespace:
         return f"inference-playroom-svc.{namespace}.svc.cluster.local:8080"
     return "127.0.0.1"
+
+async def get_service_external_ip(namespace: str, service_name: str) -> str:
+    """Return a LoadBalancer Service's external IP, or "" if not yet assigned."""
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        core_v1 = client.CoreV1Api(api_client)
+        try:
+            svc = await core_v1.read_namespaced_service(service_name, namespace)
+            ingress = getattr(getattr(getattr(svc, "status", None), "load_balancer", None), "ingress", None) or []
+            if ingress:
+                return getattr(ingress[0], "ip", None) or getattr(ingress[0], "hostname", "") or ""
+        except Exception:
+            pass
+    return ""
+
+async def resolve_reach_out_url(name: str, namespace: str) -> str:
+    """Compute a feature's "Open Showcase" link.
+
+    Hub-hosted-playroom features return their internal Hub path (e.g. ``/sandbox/``).
+    Self-contained ('link-out') features that declare ``entrypoint_service`` return the
+    external address of that Service, so the dashboard links straight to the feature's
+    own UI (decentralized — no Hub proxy). Returns None if it cannot be determined.
+    """
+    url = FEATURE_URL_MAP.get(name)
+    if url:
+        return url
+    svc = feature_registry.entrypoint_service(name)
+    if not svc:
+        return None
+    if config.MODE == "MOCK":
+        return f"http://{svc}.{namespace}.mock/"
+    ip = await get_service_external_ip(namespace, svc)
+    return f"http://{ip}/" if ip else None
 
 async def apply_yaml_manifests(namespace: str, manifests_content: str):
     docs = yaml.safe_load_all(manifests_content)
@@ -162,7 +216,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
             # Wait 2 seconds in Mock mode to let user experience "DEPLOYING" state
             await asyncio.sleep(2)
             showcase.status = "ACTIVE"
-            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+            showcase.reach_out_url = await resolve_reach_out_url(name, target_ns)
             db.commit()
         else:
             await init_k8s_connection()
@@ -201,17 +255,23 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                     if e.status != 409:
                         raise e
                 
-                feature_infra_dir = os.path.join(
+                feature_root = os.path.join(
                     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                    'features', name, 'infra'
+                    'features', name
                 )
-                
-                if os.path.exists(feature_infra_dir):
+
+                # A feature may keep its manifests in one dir (paths.infra_dir) or several
+                # (paths.infra_dirs), so it mounts into the Hub without being restructured.
+                feature_infra_dirs = [
+                    os.path.join(feature_root, d) for d in feature_registry.infra_dirs(name)
+                ]
+
+                if any(os.path.exists(d) for d in feature_infra_dirs):
                     vllm_ns = "gke-showcase-gpu-inference"
                     if target_ns.startswith("gke-showcase-agent-sandbox-"):
                         uuid_suffix = target_ns[len("gke-showcase-agent-sandbox-"):]
                         vllm_ns = f"gke-showcase-gpu-inference-{uuid_suffix}"
-                    
+
                     # Feature-declared defaults fill variables the Hub doesn't supply
                     # (e.g. GATEWAY_NAME, REPLICAS); Hub standard vars below take precedence.
                     vars_dict = {
@@ -224,14 +284,17 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                         "OPENAI_API_BASE": llm_service_endpoint if (llm_service_endpoint and llm_provider in ("vllm", "custom")) else f"http://vllm-service.{vllm_ns}.svc.cluster.local:8000/v1",
                         "ARTIFACT_REGISTRY_REPO": config.ARTIFACT_REGISTRY_REPO
                     }
-                    
-                    for filename in sorted(os.listdir(feature_infra_dir)):
-                        if filename.endswith(".yaml") or filename.endswith(".yml"):
-                            filepath = os.path.join(feature_infra_dir, filename)
-                            with open(filepath, 'r') as f:
-                                raw_content = f.read()
-                            expanded_content = expand_template(raw_content, vars_dict)
-                            await apply_yaml_manifests(target_ns, expanded_content)
+
+                    for infra_dir in feature_infra_dirs:
+                        if not os.path.isdir(infra_dir):
+                            continue
+                        for filename in sorted(os.listdir(infra_dir)):
+                            if filename.endswith(".yaml") or filename.endswith(".yml"):
+                                filepath = os.path.join(infra_dir, filename)
+                                with open(filepath, 'r') as f:
+                                    raw_content = f.read()
+                                expanded_content = expand_template(raw_content, vars_dict)
+                                await apply_yaml_manifests(target_ns, expanded_content)
                             
                 # Active readiness polling loop using AppsV1Api.read_namespaced_deployment
                 apps_v1 = client.AppsV1Api(api_client)
@@ -258,7 +321,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                 if showcase and showcase.namespace == target_ns:
                     if is_ready:
                         showcase.status = "ACTIVE"
-                        showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+                        showcase.reach_out_url = await resolve_reach_out_url(name, target_ns)
                     else:
                         showcase.status = "PROVISIONING"
                     db.commit()
@@ -636,7 +699,7 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                     if showcase and showcase.status in ("DEPLOYING", "PROVISIONING") and showcase.namespace == namespace:
                         if ready == desired and ready > 0:
                             showcase.status = "ACTIVE"
-                            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+                            showcase.reach_out_url = await resolve_reach_out_url(name, namespace)
                             db.commit()
                 finally:
                     db.close()

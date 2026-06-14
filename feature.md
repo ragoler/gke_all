@@ -80,6 +80,9 @@ gke_features:                    # bullet chips on the card
 # Where things live in THIS repo (relative paths)
 paths:
   infra_dir: infra               # per-namespace manifests applied on deploy
+  # OR, if your manifests span several dirs (keep your own layout), use a list instead
+  # of infra_dir — all are applied in order:
+  # infra_dirs: [infra, k8s]
   cluster_dir: cluster           # OPTIONAL cluster-scoped prereqs (see §5)
   frontend_dir: frontend         # served as the playroom UI; omit if no UI
   playroom_slug: my-feature      # Hub serves the UI at /my-feature/
@@ -107,10 +110,15 @@ template_vars:
 
 # Default values for any variables the Hub does NOT supply (e.g. an external demo's
 # own GATEWAY_NAME / REPLICAS / MODEL_NAME). These fill in at deploy time; Hub standard
-# variables (NAMESPACE, PROJECT_NAME, …) always take precedence over them.
+# variables (NAMESPACE, PROJECT_NAME, …) always take precedence over them. Values may
+# themselves reference other variables — they resolve to a fixed point, so you can keep
+# an existing image ref like ${REGISTRY}/app:${IMAGE_TAG} unchanged and define REGISTRY
+# here in terms of the Hub's REGION/PROJECT_NAME/ARTIFACT_REGISTRY_REPO.
 template_defaults:
   GATEWAY_NAME: my-feature-gateway
   REPLICAS: "2"
+  REGISTRY: "${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"
+  IMAGE_TAG: latest
 
 # This feature's own data-plane router (its independent "proxy"). The Hub imports
 # "<module>:<attr>" from this directory and mounts the FastAPI APIRouter under
@@ -128,8 +136,9 @@ feature, that's a sign the descriptor schema should grow a field instead — rai
 ## 3. Infra manifests (`infra/`)
 
 Manifests are plain Kubernetes YAML with `${VAR}` placeholders. On deploy the Hub
-creates the target namespace, expands variables, and applies every `*.yaml` in
-`infra_dir` (sorted by filename). On teardown it deletes the whole namespace.
+creates the target namespace, expands variables, and applies every `*.yaml` in each
+declared dir (`infra_dir`, or every dir in `infra_dirs` in order), sorted by filename.
+On teardown it deletes the whole namespace.
 
 **Variables the Hub always provides:**
 
@@ -185,6 +194,12 @@ Put them in `cluster_dir`. The Hub applies them at **cluster bootstrap**
 (`build_infra.sh`), not on every feature deploy. Declare them in `feature.yaml` via
 `paths.cluster_dir`. If your demo's standalone `setup_infra.sh` provisions these, mirror
 the same YAML into `cluster/` so the Hub path stays IaC and reproducible.
+
+Note: the Hub routes a `ComputeClass` found in a per-namespace `infra_dir` to the
+cluster-scoped API automatically, so a demo that keeps its ComputeClass alongside its
+other manifests still works without a separate `cluster_dir`. CRD bundles (e.g. installed
+via `kubectl apply -k` or Helm in a demo's own `setup_infra.sh`) are a one-time cluster
+setup — run them as part of cluster bootstrap; they are not a per-feature Hub concern.
 
 > This is the one structural gap between a typical standalone demo (which provisions
 > cluster + namespace together in `setup_infra.sh`) and a Hub feature (which assumes a

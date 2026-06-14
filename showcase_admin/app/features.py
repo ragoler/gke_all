@@ -141,6 +141,41 @@ def aggregate_frontends(dest_features_dir: str) -> None:
             logger.error("Failed to aggregate frontend for feature '%s': %s", name, exc, exc_info=True)
 
 
+def infra_dirs(name: str) -> list[str]:
+    """Return a feature's per-namespace manifest directories, in apply order.
+
+    Supports either ``paths.infra_dir`` (a single dir, the common case) or
+    ``paths.infra_dirs`` (a list, for features whose manifests are split across dirs,
+    e.g. an external demo with both ``infra/`` and ``k8s/``). Defaults to ``["infra"]``
+    so existing features need no change. Lets a feature keep its own layout instead of
+    being restructured to mount into the Hub.
+
+    Args:
+        name: The feature's registered name.
+
+    Returns:
+        Ordered list of directory names relative to the feature's directory.
+    """
+    paths = (FEATURES.get(name) or {}).get("paths") or {}
+    dirs = paths.get("infra_dirs")
+    if isinstance(dirs, list) and dirs:
+        return [str(d) for d in dirs]
+    single = paths.get("infra_dir", "infra")
+    return [str(single)]
+
+
+def entrypoint_service(name: str) -> str | None:
+    """Return the Service a self-contained ('link-out') feature is reached through.
+
+    A feature that serves its own UI (e.g. a standalone app with its own LoadBalancer)
+    declares ``entrypoint_service: <svc-name>`` instead of a Hub-served ``playroom_slug``.
+    On deploy the Hub discovers that Service's external address and uses it as the card's
+    "Open Showcase" link — the browser talks directly to the feature (decentralized), so
+    no Hub proxy or UI hosting is involved. Returns None for Hub-hosted-playroom features.
+    """
+    return (FEATURES.get(name) or {}).get("entrypoint_service")
+
+
 def template_defaults(name: str) -> dict[str, str]:
     """Return a feature's declared manifest template defaults (``template_defaults``).
 
