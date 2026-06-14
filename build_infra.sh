@@ -22,7 +22,10 @@ fi
 PROJECT_ID=${PROJECT_NAME:-$(gcloud config get-value project)}
 REGION=${REGION:-"us-west1"}
 CLUSTER_NAME=${CLUSTER_NAME:-"gke-showcase-cluster"}
-CLUSTER_VERSION=${CLUSTER_VERSION:-"1.35.2-gke.1269000"}
+# Optional. Leave empty to use GKE's release-channel default (always valid & current).
+# Only set CLUSTER_VERSION to pin a specific version (note: GPU time-sharing needs
+# >= 1.35.2-gke.1485000).
+CLUSTER_VERSION=${CLUSTER_VERSION:-""}
 NODE_POOL_NAME=${NODE_POOL_NAME:-"showcase-node-pool"}
 MACHINE_TYPE=${MACHINE_TYPE:-"e2-standard-2"}
 ARTIFACT_REGISTRY_REPO=${ARTIFACT_REGISTRY_REPO:-"gke-showcase-repo"}
@@ -120,10 +123,18 @@ if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --proje
   gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --update-addons=GcsFuseCsiDriver=ENABLED --quiet || echo "GCSFuse CSI driver already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
+  # Pin the version only if CLUSTER_VERSION is set; otherwise use the channel default.
+  VERSION_FLAG=()
+  if [ -n "$CLUSTER_VERSION" ]; then
+    VERSION_FLAG=(--cluster-version="$CLUSTER_VERSION")
+    echo "Pinning cluster version: $CLUSTER_VERSION"
+  else
+    echo "Using GKE release-channel default version (CLUSTER_VERSION unset)."
+  fi
   gcloud beta container clusters create "$CLUSTER_NAME" \
       --region="$REGION" \
       --project="$PROJECT_ID" \
-      --cluster-version="$CLUSTER_VERSION" \
+      "${VERSION_FLAG[@]}" \
       --machine-type="$MACHINE_TYPE" \
       --num-nodes=2 \
       --no-enable-master-authorized-networks \
