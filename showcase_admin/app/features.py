@@ -164,21 +164,16 @@ def infra_dirs(name: str) -> list[str]:
     return [str(single)]
 
 
-def cluster_kustomize(name: str) -> list[str]:
-    """Return cluster-scoped kustomize refs a feature needs installed at bootstrap.
+def entrypoint_service(name: str) -> str | None:
+    """Return the Service a self-contained ('link-out') feature is reached through.
 
-    Declared as a top-level ``cluster_kustomize`` list in feature.yaml — e.g. a CRD
-    bundle like the gateway-api-inference-extension. build_infra.sh applies each via
-    ``kubectl apply -k <ref>`` once per cluster. Empty if none declared.
-
-    Args:
-        name: The feature's registered name.
-
-    Returns:
-        Ordered list of kustomize references (URLs or paths).
+    A feature that serves its own UI (e.g. a standalone app with its own LoadBalancer)
+    declares ``entrypoint_service: <svc-name>`` instead of a Hub-served ``playroom_slug``.
+    On deploy the Hub discovers that Service's external address and uses it as the card's
+    "Open Showcase" link — the browser talks directly to the feature (decentralized), so
+    no Hub proxy or UI hosting is involved. Returns None for Hub-hosted-playroom features.
     """
-    refs = (FEATURES.get(name) or {}).get("cluster_kustomize") or []
-    return [str(r) for r in refs] if isinstance(refs, list) else []
+    return (FEATURES.get(name) or {}).get("entrypoint_service")
 
 
 def template_defaults(name: str) -> dict[str, str]:

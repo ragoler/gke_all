@@ -89,6 +89,39 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
         return f"inference-playroom-svc.{namespace}.svc.cluster.local:8080"
     return "127.0.0.1"
 
+async def get_service_external_ip(namespace: str, service_name: str) -> str:
+    """Return a LoadBalancer Service's external IP, or "" if not yet assigned."""
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        core_v1 = client.CoreV1Api(api_client)
+        try:
+            svc = await core_v1.read_namespaced_service(service_name, namespace)
+            ingress = getattr(getattr(getattr(svc, "status", None), "load_balancer", None), "ingress", None) or []
+            if ingress:
+                return getattr(ingress[0], "ip", None) or getattr(ingress[0], "hostname", "") or ""
+        except Exception:
+            pass
+    return ""
+
+async def resolve_reach_out_url(name: str, namespace: str) -> str:
+    """Compute a feature's "Open Showcase" link.
+
+    Hub-hosted-playroom features return their internal Hub path (e.g. ``/sandbox/``).
+    Self-contained ('link-out') features that declare ``entrypoint_service`` return the
+    external address of that Service, so the dashboard links straight to the feature's
+    own UI (decentralized — no Hub proxy). Returns None if it cannot be determined.
+    """
+    url = FEATURE_URL_MAP.get(name)
+    if url:
+        return url
+    svc = feature_registry.entrypoint_service(name)
+    if not svc:
+        return None
+    if config.MODE == "MOCK":
+        return f"http://{svc}.{namespace}.mock/"
+    ip = await get_service_external_ip(namespace, svc)
+    return f"http://{ip}/" if ip else None
+
 async def apply_yaml_manifests(namespace: str, manifests_content: str):
     docs = yaml.safe_load_all(manifests_content)
     async with client.ApiClient() as api_client:
@@ -183,7 +216,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
             # Wait 2 seconds in Mock mode to let user experience "DEPLOYING" state
             await asyncio.sleep(2)
             showcase.status = "ACTIVE"
-            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+            showcase.reach_out_url = await resolve_reach_out_url(name, target_ns)
             db.commit()
         else:
             await init_k8s_connection()
@@ -288,7 +321,7 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
                 if showcase and showcase.namespace == target_ns:
                     if is_ready:
                         showcase.status = "ACTIVE"
-                        showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+                        showcase.reach_out_url = await resolve_reach_out_url(name, target_ns)
                     else:
                         showcase.status = "PROVISIONING"
                     db.commit()
@@ -666,7 +699,7 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                     if showcase and showcase.status in ("DEPLOYING", "PROVISIONING") and showcase.namespace == namespace:
                         if ready == desired and ready > 0:
                             showcase.status = "ACTIVE"
-                            showcase.reach_out_url = FEATURE_URL_MAP.get(name)
+                            showcase.reach_out_url = await resolve_reach_out_url(name, namespace)
                             db.commit()
                 finally:
                     db.close()

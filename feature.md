@@ -120,11 +120,6 @@ template_defaults:
   REGISTRY: "${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"
   IMAGE_TAG: latest
 
-# OPTIONAL — cluster-scoped kustomize refs (e.g. CRD bundles) installed once per
-# cluster at bootstrap via `kubectl apply -k`. Use for CRDs your manifests depend on.
-cluster_kustomize:
-  - https://github.com/example/crds/config/crd?ref=v1.0.0
-
 # This feature's own data-plane router (its independent "proxy"). The Hub imports
 # "<module>:<attr>" from this directory and mounts the FastAPI APIRouter under
 # /api/features/<name>. Each feature owns its router, so its API is fully isolated
@@ -200,11 +195,11 @@ Put them in `cluster_dir`. The Hub applies them at **cluster bootstrap**
 `paths.cluster_dir`. If your demo's standalone `setup_infra.sh` provisions these, mirror
 the same YAML into `cluster/` so the Hub path stays IaC and reproducible.
 
-For CRD bundles installed via kustomize (rather than local YAML), declare a top-level
-`cluster_kustomize:` list of refs; `build_infra.sh` runs `kubectl apply -k <ref>` for
-each at bootstrap. Note: the Hub also routes a `ComputeClass` found in a per-namespace
-`infra_dir` to the cluster-scoped API automatically, so a demo that keeps its
-ComputeClass alongside its other manifests still works without a separate `cluster_dir`.
+Note: the Hub routes a `ComputeClass` found in a per-namespace `infra_dir` to the
+cluster-scoped API automatically, so a demo that keeps its ComputeClass alongside its
+other manifests still works without a separate `cluster_dir`. CRD bundles (e.g. installed
+via `kubectl apply -k` or Helm in a demo's own `setup_infra.sh`) are a one-time cluster
+setup — run them as part of cluster bootstrap; they are not a per-feature Hub concern.
 
 > This is the one structural gap between a typical standalone demo (which provisions
 > cluster + namespace together in `setup_infra.sh`) and a Hub feature (which assumes a
