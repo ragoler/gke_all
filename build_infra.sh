@@ -69,7 +69,16 @@ if [ "$DESTROY_MODE" = "true" ]; then
   else
     echo "Repository $ARTIFACT_REGISTRY_REPO does not exist, skipping repository deletion."
   fi
-  
+
+  # Delete the proxy-only subnet last (it's deletable once the cluster's gateways are gone).
+  if gcloud compute networks subnets describe gke-showcase-proxy-subnet --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    echo "Deleting proxy-only subnet gke-showcase-proxy-subnet in region $REGION..."
+    gcloud compute networks subnets delete gke-showcase-proxy-subnet --region="$REGION" --project="$PROJECT_ID" --quiet \
+      || echo "Could not delete proxy-only subnet (it may still be reconciling or in use); leaving it — bootstrap will reuse it."
+  else
+    echo "Proxy-only subnet gke-showcase-proxy-subnet does not exist, skipping."
+  fi
+
   echo "======================================================================"
   echo " Cleanup completed successfully!"
   echo "======================================================================"
@@ -103,14 +112,18 @@ gcloud services enable networkservices.googleapis.com --project="$PROJECT_ID" --
 
 # Pre-flight validation: ensure proxy-only subnet exists in region for Regional Gateway API
 echo "Verifying and provisioning proxy-only subnet in region $REGION for Regional Gateway API..."
-gcloud compute networks subnets create gke-showcase-proxy-subnet \
-    --purpose=REGIONAL_MANAGED_PROXY \
-    --role=ACTIVE \
-    --region="$REGION" \
-    --network=default \
-    --range=192.168.10.0/23 \
-    --project="$PROJECT_ID" \
-    --quiet || echo "Proxy-only subnet already exists or active in region."
+if gcloud compute networks subnets describe gke-showcase-proxy-subnet --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  echo "Proxy-only subnet gke-showcase-proxy-subnet already exists in $REGION; skipping."
+else
+  gcloud compute networks subnets create gke-showcase-proxy-subnet \
+      --purpose=REGIONAL_MANAGED_PROXY \
+      --role=ACTIVE \
+      --region="$REGION" \
+      --network=default \
+      --range=192.168.10.0/23 \
+      --project="$PROJECT_ID" \
+      --quiet
+fi
 
 # Base cluster creation
 if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
