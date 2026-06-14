@@ -10,6 +10,14 @@ if [ -f .env ]; then
   set +a
 fi
 
+# Ensure feature submodules are checked out so features/* (e.g. inference-gateway) are
+# present — no need to remember `git submodule update --init --recursive`. Idempotent and
+# a no-op for an already-initialized checkout; non-fatal if it can't reach the network.
+if [ -f .gitmodules ] && git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "Syncing feature submodules..."
+  git submodule update --init --recursive || echo "Warning: submodule sync failed; continuing (ensure features/* are present)."
+fi
+
 # Set defaults
 PROJECT_ID=${PROJECT_NAME:-$(gcloud config get-value project)}
 REGION=${REGION:-"us-west1"}
