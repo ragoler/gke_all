@@ -43,7 +43,8 @@ def test_api_authorized_get_showcases(client):
         response = client.get("/api/showcases", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        names = {s["name"] for s in data}
+        assert {"agent-sandbox", "gpu-inference", "inference-gateway"} <= names
         assert data[0]["name"] == "agent-sandbox"
         assert data[0]["status"] == "DORMANT"
 
