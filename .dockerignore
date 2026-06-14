@@ -1,0 +1,20 @@
+# Keep the Docker build context small — the admin image only needs showcase_admin/,
+# features/, and infra/. Excluding these avoids shipping 100MB+ of venvs/git to the daemon.
+.git
+**/.git
+.venv
+**/.venv
+venv/
+ENV/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+data/
+logs/
+.env
+*.pdf
+.claude/
+.DS_Store

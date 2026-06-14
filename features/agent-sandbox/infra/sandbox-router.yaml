@@ -34,6 +34,12 @@ spec:
         env:
         - name: PROXY_TIMEOUT_SECONDS
           value: "180"
+        # Upstream sandbox-router refuses to start unless auth is configured. This is a
+        # single-user showcase and the router sits behind the feature Gateway, so we opt
+        # into unauthenticated mode explicitly (alternative: set ROUTER_AUTH_TOKEN and
+        # send it from the Hub's message/quote calls).
+        - name: ALLOW_UNAUTHENTICATED_ROUTER
+          value: "true"
         ports:
         - containerPort: 8080
         resources:
