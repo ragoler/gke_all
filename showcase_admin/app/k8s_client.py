@@ -608,24 +608,51 @@ async def delete_sandbox_claim(namespace: str, claim_id: str):
         except Exception as e:
             raise Exception(f"Failed to delete claim on GKE: {str(e)}")
 
+async def get_claim_sandbox_name(namespace: str, claim_id: str) -> str:
+    """Resolve a SandboxClaim to its bound sandbox's routable name.
+
+    The agent-sandbox operator binds a claim to a warm-pool Sandbox whose own name — not
+    the claim id — is the addressable Service hostname. The router proxies to
+    ``<name>.<namespace>.svc.cluster.local:8888``, so message/quote must target the bound
+    name. Falls back to the claim id if the binding isn't reported yet.
+    """
+    await init_k8s_connection()
+    try:
+        async with client.ApiClient() as api_client:
+            custom_api = client.CustomObjectsApi(api_client)
+            claim = await custom_api.get_namespaced_custom_object(
+                group="extensions.agents.x-k8s.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="sandboxclaims",
+                name=claim_id,
+            )
+        sandbox = (claim.get("status", {}) or {}).get("sandbox", {}) or {}
+        # The CRD reports the bound sandbox under "Name" (capitalized).
+        return sandbox.get("Name") or sandbox.get("name") or claim_id
+    except Exception:
+        return claim_id
+
 async def message_sandbox_claim(namespace: str, claim_id: str, message: str, provider: str, vllm_namespace: str) -> str:
     if config.MODE == "MOCK":
         return f"[{claim_id}] Mock reply using model routing '{provider}': Recieved your prompt '{message}'."
         
+    sandbox_name = await get_claim_sandbox_name(namespace, claim_id)
+
     if config.SANDBOX_ROUTER_URL:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/message"
     else:
         gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
         url = f"http://{gateway_ip}/message"
-    
+
     headers = {
-        "X-Sandbox-Id": claim_id,
+        "X-Sandbox-Id": sandbox_name,
         "X-Sandbox-Namespace": namespace,
         "X-Sandbox-Provider": provider,
         "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
         "Content-Type": "application/json"
     }
-    
+
     payload = {"message": message}
         
     try:
@@ -640,14 +667,16 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     if config.MODE == "MOCK":
         return f"\"The best way to predict the future is to invent it.\" - Routed via GKE Sandbox [{claim_id}] using provider '{provider}'."
         
+    sandbox_name = await get_claim_sandbox_name(namespace, claim_id)
+
     if config.SANDBOX_ROUTER_URL:
         url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/quote"
     else:
         gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
         url = f"http://{gateway_ip}/quote"
-    
+
     headers = {
-        "X-Sandbox-Id": claim_id,
+        "X-Sandbox-Id": sandbox_name,
         "X-Sandbox-Namespace": namespace,
         "X-Sandbox-Provider": provider,
         "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
