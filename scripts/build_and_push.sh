@@ -36,6 +36,9 @@ show_help() {
   echo "Options:"
   echo "  --feature <name>  Build only 'admin', a feature name, or a specific image name."
   echo "                    Feature images are discovered from features/*/feature.yaml."
+  echo "  --no-rollout      Do not 'kubectl rollout restart' affected Deployments after"
+  echo "                    pushing (default: roll them if a cluster is reachable, so the"
+  echo "                    new images take effect — :latest is not auto-pulled)."
   echo "  --help            Display this menu"
   echo ""
   echo "Discoverable feature build targets (feature -> image):"
@@ -44,9 +47,11 @@ show_help() {
 
 # Parse command-line args
 TARGET_FEATURE=""
+ROLLOUT=true
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     --feature) TARGET_FEATURE="$2"; shift ;;
+    --no-rollout) ROLLOUT=false ;;
     --help) show_help; exit 0 ;;
     *) echo "Unknown parameter: $1"; show_help; exit 1 ;;
   esac
@@ -126,6 +131,38 @@ build_features() {
   fi
 }
 
+# Roll the Deployments affected by this build so the cluster pulls the new images
+# (a :latest tag is not re-pulled on its own). Default on; skip with --no-rollout, and a
+# no-op when no cluster is reachable (e.g. a build-only machine).
+roll_deployment() {
+  local dep="$1" ns="$2"
+  if kubectl get deployment "$dep" -n "$ns" >/dev/null 2>&1; then
+    echo ">>> Rolling deployment/${dep} in ${ns}..."
+    kubectl rollout restart "deployment/${dep}" -n "$ns" || echo "Warning: rollout of ${dep} failed."
+  fi
+}
+
+maybe_rollout() {
+  [ "$ROLLOUT" = "true" ] || { echo "Skipping rollout (--no-rollout)."; return; }
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl not found; skipping rollout (images are pushed)."; return
+  fi
+  if ! kubectl get namespace gke-showcase-admin >/dev/null 2>&1; then
+    echo "No reachable showcase cluster; skipping rollout (images are pushed)."; return
+  fi
+  echo "Rolling affected Deployments so new images take effect..."
+  if [ -z "$TARGET_FEATURE" ] || [ "$TARGET_FEATURE" = "admin" ]; then
+    roll_deployment showcase-admin-deployment gke-showcase-admin
+  fi
+  # Roll any built feature's Deployment in its default namespace (best-effort).
+  while IFS=$'\t' read -r fname dep ns; do
+    [ -z "$dep" ] && continue
+    if [ -z "$TARGET_FEATURE" ] || [ "$TARGET_FEATURE" = "$fname" ]; then
+      roll_deployment "$dep" "$ns"
+    fi
+  done < <("$PY" scripts/feature_deployments.py)
+}
+
 # Orchestrate builds
 if [ -n "$TARGET_FEATURE" ]; then
   if [ "$TARGET_FEATURE" = "admin" ]; then
@@ -141,3 +178,5 @@ fi
 echo "======================================================================"
 echo " GKE Showcase Hub images pushed successfully to ${REGISTRY}"
 echo "======================================================================"
+
+maybe_rollout
