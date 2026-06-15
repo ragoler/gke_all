@@ -210,23 +210,28 @@ async def test_real_mode_k8s_client_helpers(mock_init, init_memory_db):
          mock.patch("kubernetes_asyncio.client.ApiClient"):
         
         import showcase_admin.app.k8s_client as sak
-        # 1. List claims (from the in-memory session registry)
+        # 1. List claims from the SandboxClaim CRDs (source of truth; survives a Hub restart)
         sak._sandbox_sessions.clear()
-        sak._sandbox_sessions["sb-1"] = object()
         claims = await list_sandbox_claims("test-ns")
         assert len(claims) == 1
         assert claims[0]["id"] == "sb-1"
 
-        # 1b. Empty registry -> empty list
-        sak._sandbox_sessions.clear()
+        # 1b. No CRDs -> empty list
+        mock_custom.list_namespaced_custom_object = mock.AsyncMock(return_value={"items": []})
         assert await list_sandbox_claims("test-ns") == []
+        # restore the one-claim listing for the delete sub-test below
+        mock_custom.list_namespaced_custom_object = mock.AsyncMock(return_value={
+            "items": [{"metadata": {"name": "sb-1"}, "status": {"sandbox": {"Name": "sb-1"}}}]
+        })
 
-        # 2. Delete terminates the live session handle and drops it from the registry
+        # 2. Delete terminates the live handle (if any) AND deletes the SandboxClaim CRD,
+        #    so a claim orphaned by a restart (not in the registry) is still removable.
         term = mock.MagicMock()
         sak._sandbox_sessions["sb-1"] = mock.MagicMock(terminate=term)
         await delete_sandbox_claim("test-ns", "sb-1")
         term.assert_called_once()
         assert "sb-1" not in sak._sandbox_sessions
+        mock_custom.delete_namespaced_custom_object.assert_called()
 
         # 3/4. Message + quote route through the live session
         sak._sandbox_sessions["sb-1"] = object()
@@ -407,14 +412,22 @@ async def test_k8s_client_thorough_coverage():
             with pytest.raises(httpx.RequestError):
                 await execute_http_with_retry("GET", "http://url", max_retries=1)
                 
-        # 3. Sandbox Claims: delete error + create success/failure (official-client path)
+        # 3. Sandbox Claims: delete is best-effort on terminate(), then deletes the CRD.
+        import kubernetes_asyncio.client as kclient
         import showcase_admin.app.k8s_client as sak
-        # delete error surfaces from the session handle's terminate()
+        # A failing terminate() is swallowed; an error deleting the SandboxClaim CRD surfaces.
+        mock_custom_d = mock.MagicMock()
+        mock_custom_d.list_namespaced_custom_object = mock.AsyncMock(return_value={
+            "items": [{"metadata": {"name": "c1"}, "status": {"sandbox": {"Name": "c1"}}}]
+        })
+        mock_custom_d.delete_namespaced_custom_object = mock.AsyncMock(
+            side_effect=kclient.exceptions.ApiException(status=500))
         bad = mock.MagicMock()
         bad.terminate.side_effect = Exception("del error")
         sak._sandbox_sessions["c1"] = bad
-        with pytest.raises(Exception, match="Failed to delete claim on GKE"):
-            await delete_sandbox_claim("ns", "c1")
+        with mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom_d):
+            with pytest.raises(Exception, match="Failed to delete claim on GKE"):
+                await delete_sandbox_claim("ns", "c1")
         # create success returns the resolved sandbox id
         with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync",
                         return_value=mock.MagicMock(sandbox_id="c1")):

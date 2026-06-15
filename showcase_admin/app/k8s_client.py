@@ -543,6 +543,27 @@ _sandbox_sessions: dict = {}
 
 TEMPLATE_NAME = "agent-sandbox-template"
 
+# SandboxClaim CRD coordinates. The Hub keys its in-memory handles by sandbox_id (the bound
+# pod, agent-sandbox-warmpool-*), but the deletable object is the SandboxClaim (sandbox-claim-*)
+# whose status.sandbox.Name == that sandbox_id. Listing/deleting the CRDs directly (rather
+# than the in-memory dict) makes claims leaked by a Hub restart both visible and removable.
+SANDBOX_GROUP = "extensions.agents.x-k8s.io"
+SANDBOX_VERSION = "v1alpha1"
+SANDBOX_CLAIM_PLURAL = "sandboxclaims"
+
+
+def _claim_status(claim: dict) -> str:
+    for cond in (claim.get("status", {}) or {}).get("conditions", []) or []:
+        if cond.get("type") == "Ready":
+            return "RUNNING" if cond.get("status") == "True" else "PENDING"
+    return "PENDING"
+
+
+def _claim_sandbox_id(claim: dict) -> str:
+    """The bound Sandbox name (== the Hub's sandbox_id), falling back to the claim name."""
+    bound = (claim.get("status", {}) or {}).get("sandbox", {}) or {}
+    return bound.get("Name") or claim.get("metadata", {}).get("name", "")
+
 
 def _build_sandbox_client(namespace: str):
     # Imported lazily so MOCK mode and local tests don't require the library installed.
@@ -588,9 +609,22 @@ def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dic
 async def list_sandbox_claims(namespace: str) -> list:
     if config.MODE == "MOCK":
         return [{"id": cid, "status": "RUNNING"} for cid in mock_claims.keys()]
-    # Only sessions this Hub process can route are listed (in-memory registry; a Hub
-    # restart clears it and the user simply re-allocates).
-    return [{"id": sid, "status": "RUNNING"} for sid in list(_sandbox_sessions.keys())]
+    # List the real SandboxClaim CRDs (source of truth), so claims orphaned by a Hub
+    # restart are still visible and can be released — the in-memory registry only knows
+    # the ones this process created.
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        custom_api = client.CustomObjectsApi(api_client)
+        resp = await custom_api.list_namespaced_custom_object(
+            group=SANDBOX_GROUP,
+            version=SANDBOX_VERSION,
+            namespace=namespace,
+            plural=SANDBOX_CLAIM_PLURAL,
+        )
+    return [
+        {"id": _claim_sandbox_id(item), "status": _claim_status(item)}
+        for item in resp.get("items", [])
+    ]
 
 
 async def create_sandbox_claim(namespace: str, claim_id: str = None) -> dict:
@@ -614,19 +648,94 @@ async def delete_sandbox_claim(namespace: str, claim_id: str):
         mock_claims.pop(claim_id, None)
         return
 
+    # Best-effort terminate via the live client handle (clean release) if this process
+    # created the claim. Then always delete the SandboxClaim CRD by name so claims
+    # orphaned by a Hub restart (not in the registry) are removable too.
     sandbox = _sandbox_sessions.pop(claim_id, None)
-    if sandbox is None:
-        return
+    if sandbox is not None:
+        try:
+            await asyncio.to_thread(sandbox.terminate)
+        except Exception:
+            pass  # fall through to deleting the CRD directly
+
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        custom_api = client.CustomObjectsApi(api_client)
+        resp = await custom_api.list_namespaced_custom_object(
+            group=SANDBOX_GROUP,
+            version=SANDBOX_VERSION,
+            namespace=namespace,
+            plural=SANDBOX_CLAIM_PLURAL,
+        )
+        # claim_id is the bound sandbox_id; map it back to the owning SandboxClaim name.
+        claim_name = next(
+            (
+                item.get("metadata", {}).get("name")
+                for item in resp.get("items", [])
+                if _claim_sandbox_id(item) == claim_id
+                or item.get("metadata", {}).get("name") == claim_id
+            ),
+            None,
+        )
+        if claim_name is None:
+            return  # already gone (e.g. terminated above)
+        try:
+            await custom_api.delete_namespaced_custom_object(
+                group=SANDBOX_GROUP,
+                version=SANDBOX_VERSION,
+                namespace=namespace,
+                plural=SANDBOX_CLAIM_PLURAL,
+                name=claim_name,
+            )
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise Exception(f"Failed to delete claim on GKE: {str(e)}")
+
+
+# A gVisor sandbox is given public DNS only (resolv.conf points at 8.8.8.8/1.1.1.1), so it
+# cannot resolve in-cluster names like vllm-service.<ns>.svc.cluster.local — only reach IPs.
+# The Hub (which has cluster API access) therefore resolves the vLLM Service ClusterIP and
+# hands the sandbox an IP endpoint, preserving the sandbox's DNS isolation. Cached per
+# namespace; falls back to the cluster DNS name if the Service lookup fails.
+VLLM_SERVICE_NAME = "vllm-service"
+VLLM_PORT = 8000
+_vllm_endpoint_cache: dict = {}
+
+
+def _vllm_dns_endpoint(vllm_namespace: str) -> str:
+    return f"http://{VLLM_SERVICE_NAME}.{vllm_namespace}.svc.cluster.local:{VLLM_PORT}/v1"
+
+
+async def _resolve_vllm_endpoint(vllm_namespace: str) -> str:
+    """Resolve the vLLM Service ClusterIP into an IP endpoint the sandbox can reach.
+
+    Falls back to the in-cluster DNS name (the prior behavior) if the Service cannot be
+    read — that path still works from any pod with cluster DNS, just not from a sandbox.
+    """
+    if config.MODE == "MOCK":
+        return _vllm_dns_endpoint(vllm_namespace)
+    cached = _vllm_endpoint_cache.get(vllm_namespace)
+    if cached:
+        return cached
     try:
-        await asyncio.to_thread(sandbox.terminate)
-    except Exception as e:
-        raise Exception(f"Failed to delete claim on GKE: {str(e)}")
+        await init_k8s_connection()
+        async with client.ApiClient() as api_client:
+            core_v1 = client.CoreV1Api(api_client)
+            svc = await core_v1.read_namespaced_service(VLLM_SERVICE_NAME, vllm_namespace)
+        cluster_ip = getattr(svc.spec, "cluster_ip", None)
+        if cluster_ip and cluster_ip != "None":
+            endpoint = f"http://{cluster_ip}:{VLLM_PORT}/v1"
+            _vllm_endpoint_cache[vllm_namespace] = endpoint
+            return endpoint
+    except Exception:
+        pass
+    return _vllm_dns_endpoint(vllm_namespace)
 
 
-def _sandbox_routing_headers(provider: str, vllm_namespace: str) -> dict:
+def _sandbox_routing_headers(provider: str, vllm_endpoint: str) -> dict:
     return {
         "X-Sandbox-Provider": provider,
-        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
+        "X-Sandbox-Vllm-Endpoint": vllm_endpoint,
     }
 
 
@@ -638,9 +747,10 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     if not sandbox:
         return "Failed to communicate with GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
     try:
+        vllm_endpoint = await _resolve_vllm_endpoint(vllm_namespace)
         resp = await asyncio.to_thread(
             _sandbox_request_sync, sandbox, "POST", "message",
-            {"message": message}, _sandbox_routing_headers(provider, vllm_namespace),
+            {"message": message}, _sandbox_routing_headers(provider, vllm_endpoint),
         )
         if resp.status_code != 200:
             raise Exception(f"sandbox returned {resp.status_code}: {resp.text}")
@@ -657,9 +767,10 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     if not sandbox:
         return "Failed to fetch quotes from GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
     try:
+        vllm_endpoint = await _resolve_vllm_endpoint(vllm_namespace)
         resp = await asyncio.to_thread(
             _sandbox_request_sync, sandbox, "GET", "quote",
-            None, _sandbox_routing_headers(provider, vllm_namespace),
+            None, _sandbox_routing_headers(provider, vllm_endpoint),
         )
         if resp.status_code != 200:
             raise Exception(f"sandbox returned {resp.status_code}: {resp.text}")
