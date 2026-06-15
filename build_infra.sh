@@ -134,6 +134,11 @@ if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --proje
   gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --enable-agent-sandbox --quiet || echo "Agent Sandbox already enabled or update in progress."
   echo "Verifying and enabling GCSFuse CSI driver on existing cluster..."
   gcloud beta container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --update-addons=GcsFuseCsiDriver=ENABLED --quiet || echo "GCSFuse CSI driver already enabled or update in progress."
+  echo "Verifying and enabling Node Auto-Provisioning (lets GPU Custom Compute Classes auto-create pools with fallback)..."
+  gcloud container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" \
+      --enable-autoprovisioning --min-cpu=0 --max-cpu=200 --min-memory=0 --max-memory=2000 \
+      --max-accelerator=type=nvidia-l4,count=8 --max-accelerator=type=nvidia-rtx-pro-6000,count=8 \
+      --quiet || echo "Node Auto-Provisioning already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   # Pin the version only if CLUSTER_VERSION is set; otherwise use the channel default.
@@ -153,7 +158,11 @@ else
       --no-enable-master-authorized-networks \
       --workload-pool="${PROJECT_ID}.svc.id.goog" \
       --gateway-api=standard \
-      --enable-agent-sandbox
+      --enable-agent-sandbox \
+      --enable-autoprovisioning \
+      --min-cpu=0 --max-cpu=200 --min-memory=0 --max-memory=2000 \
+      --max-accelerator=type=nvidia-l4,count=8 \
+      --max-accelerator=type=nvidia-rtx-pro-6000,count=8
 fi
 
 # Retrieve GKE cluster credentials
@@ -170,13 +179,10 @@ gcloud container node-pools create showcase-gvisor-pool \
     --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
     --quiet || echo "gVisor node pool already exists or skipped."
 
-gcloud container node-pools create showcase-gpu-pool \
-    --cluster="$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" \
-    --machine-type="g2-standard-8" \
-    --accelerator="type=nvidia-l4,count=1" \
-    --spot \
-    --enable-autoscaling --min-nodes=0 --max-nodes=2 --num-nodes=0 \
-    --quiet || echo "Spot GPU node pool already exists or skipped."
+# No fixed GPU node pool: the gpu-inference 'gpu-inference-flex' Custom Compute Class
+# (features/gpu-inference/infra/compute-classes.yaml) provisions GPU nodes on demand via
+# Node Auto-Provisioning, falling back across tiers (G2 Spot L4 -> G4 Spot -> G2 on-demand
+# -> G4 on-demand) so a Spot stockout no longer blocks the vLLM workload.
 
 # Apply per-feature cluster-scoped prerequisites (declared via paths.cluster_dir in
 # each feature.yaml). These are resources that exist once per cluster — GPU
