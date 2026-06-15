@@ -7,3 +7,5 @@ kubernetes_asyncio>=26.0.0
 python-dotenv>=1.0.0
 pyjwt>=2.8.0
 pytest-cov>=4.1.0
+# Official Agent Sandbox client — the Hub uses it to claim and route to sandboxes.
+k8s-agent-sandbox==0.2.1
