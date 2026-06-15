@@ -152,10 +152,10 @@ async def test_create_sandbox_claim_api_exceptions(mock_init):
             await create_sandbox_claim("test-ns", "claim-1")
     # Success: returns the client's generated claim name and registers the session.
     with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync",
-                    return_value=mock.MagicMock(claim_name="sandbox-claim-abcd")):
+                    return_value=mock.MagicMock(sandbox_id="agent-sandbox-warmpool-abcd")):
         res = await create_sandbox_claim("test-ns")
-        assert res == {"id": "sandbox-claim-abcd", "status": "RUNNING"}
-        assert "sandbox-claim-abcd" in sak._sandbox_sessions
+        assert res == {"id": "agent-sandbox-warmpool-abcd", "status": "RUNNING"}
+        assert "agent-sandbox-warmpool-abcd" in sak._sandbox_sessions
     sak._sandbox_sessions.clear()
 
 @pytest.mark.anyio
@@ -221,10 +221,12 @@ async def test_real_mode_k8s_client_helpers(mock_init, init_memory_db):
         sak._sandbox_sessions.clear()
         assert await list_sandbox_claims("test-ns") == []
 
-        # 2. Delete claim (pops the registry and deletes the SandboxClaim)
-        sak._sandbox_sessions["sb-1"] = object()
+        # 2. Delete terminates the live session handle and drops it from the registry
+        term = mock.MagicMock()
+        sak._sandbox_sessions["sb-1"] = mock.MagicMock(terminate=term)
         await delete_sandbox_claim("test-ns", "sb-1")
-        mock_custom.delete_namespaced_custom_object.assert_called_once()
+        term.assert_called_once()
+        assert "sb-1" not in sak._sandbox_sessions
 
         # 3/4. Message + quote route through the live session
         sak._sandbox_sessions["sb-1"] = object()
@@ -407,14 +409,15 @@ async def test_k8s_client_thorough_coverage():
                 
         # 3. Sandbox Claims: delete error + create success/failure (official-client path)
         import showcase_admin.app.k8s_client as sak
-        mock_custom = mock.MagicMock()
-        mock_custom.delete_namespaced_custom_object = mock.AsyncMock(side_effect=Exception("del error"))
-        with mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom):
-            sak._sandbox_sessions["c1"] = object()
-            with pytest.raises(Exception, match="Failed to delete claim on GKE"):
-                await delete_sandbox_claim("ns", "c1")
+        # delete error surfaces from the session handle's terminate()
+        bad = mock.MagicMock()
+        bad.terminate.side_effect = Exception("del error")
+        sak._sandbox_sessions["c1"] = bad
+        with pytest.raises(Exception, match="Failed to delete claim on GKE"):
+            await delete_sandbox_claim("ns", "c1")
+        # create success returns the resolved sandbox id
         with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync",
-                        return_value=mock.MagicMock(claim_name="c1")):
+                        return_value=mock.MagicMock(sandbox_id="c1")):
             res = await create_sandbox_claim("ns")
             assert res == {"id": "c1", "status": "RUNNING"}
         with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync", side_effect=Exception("boom")):

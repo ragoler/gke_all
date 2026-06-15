@@ -533,32 +533,33 @@ async def execute_http_with_retry(method: str, url: str, headers: dict = None, j
 # ----------------------------------------------------------------------
 # FEATURE 1: AGENT SANDBOX — via the official k8s-agent-sandbox client
 # ----------------------------------------------------------------------
-# The standard, supported path (per GKE docs and ragoler/AgentSandboxExample): the client
-# creates the SandboxClaim, waits for readiness + the gateway IP, and routes requests
-# through the sandbox-router for us. This replaces the hand-rolled claim + X-Sandbox-Id
-# routing that kept breaking on upstream changes. Live sessions are held in-memory per Hub
-# process (single-user demo), keyed by the client's generated claim name.
+# Standard, documented path (cloud.google.com/kubernetes-engine/docs/how-to/agent-sandbox):
+# an in-cluster controller uses SandboxDirectConnectionConfig to the sandbox-router, and
+# create_sandbox(warmpool=...) claims a pre-warmed pod. The client resolves the bound
+# Sandbox id (which, for a warm pool, differs from the claim name) and connector.send_request
+# routes HTTP to the sandbox. Live Sandbox handles are kept in-memory per Hub process
+# (single-user demo), keyed by the resolved sandbox id.
 _sandbox_sessions: dict = {}
+
+WARMPOOL_NAME = "agent-sandbox-warmpool"
 
 
 def _build_sandbox_client(namespace: str):
     # Imported lazily so MOCK mode and local tests don't require the library installed.
     from k8s_agent_sandbox import SandboxClient
+    from k8s_agent_sandbox.models import SandboxDirectConnectionConfig
     return SandboxClient(
-        template_name="agent-sandbox-template",
-        gateway_name="agent-sandbox-gateway",
-        namespace=namespace,
-        server_port=8888,
+        connection_config=SandboxDirectConnectionConfig(
+            api_url=f"http://sandbox-router-svc.{namespace}.svc.cluster.local:8080",
+            server_port=8888,
+        )
     )
 
 
 def _create_sandbox_session_sync(namespace: str):
-    """Blocking: create a claim and wait until it is routable (run via asyncio.to_thread)."""
-    sandbox = _build_sandbox_client(namespace)
-    sandbox._create_claim()
-    sandbox._wait_for_sandbox_ready()
-    sandbox._wait_for_gateway_ip()
-    return sandbox
+    """Blocking: claim a pre-warmed sandbox and wait until it is ready (via asyncio.to_thread)."""
+    sandbox_client = _build_sandbox_client(namespace)
+    return sandbox_client.create_sandbox(warmpool=WARMPOOL_NAME, namespace=namespace)
 
 
 def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dict = None, headers: dict = None):
@@ -567,8 +568,8 @@ def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dic
     last = None
     for _ in range(30):
         try:
-            resp = sandbox._request(method, endpoint, json=json_payload, headers=headers or {})
-            if resp.status_code != 502:
+            resp = sandbox.connector.send_request(method, endpoint, json=json_payload, headers=headers or {})
+            if getattr(resp, "status_code", 0) != 502:
                 return resp
             last = resp
         except Exception:
@@ -576,7 +577,7 @@ def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dic
         time.sleep(1.0)
     if last is not None:
         return last
-    return sandbox._request(method, endpoint, json=json_payload, headers=headers or {})
+    return sandbox.connector.send_request(method, endpoint, json=json_payload, headers=headers or {})
 
 
 async def list_sandbox_claims(namespace: str) -> list:
@@ -584,7 +585,7 @@ async def list_sandbox_claims(namespace: str) -> list:
         return [{"id": cid, "status": "RUNNING"} for cid in mock_claims.keys()]
     # Only sessions this Hub process can route are listed (in-memory registry; a Hub
     # restart clears it and the user simply re-allocates).
-    return [{"id": name, "status": "RUNNING"} for name in list(_sandbox_sessions.keys())]
+    return [{"id": sid, "status": "RUNNING"} for sid in list(_sandbox_sessions.keys())]
 
 
 async def create_sandbox_claim(namespace: str, claim_id: str = None) -> dict:
@@ -593,15 +594,14 @@ async def create_sandbox_claim(namespace: str, claim_id: str = None) -> dict:
         mock_claims[cid] = "ACTIVE"
         return {"id": cid, "status": "RUNNING"}
 
-    await init_k8s_connection()
     try:
         sandbox = await asyncio.to_thread(_create_sandbox_session_sync, namespace)
     except ImportError as e:
         raise Exception(f"Agent Sandbox client library unavailable: {str(e)}")
     except Exception as e:
         raise Exception(f"Failed to claim sandbox on GKE: {str(e)}")
-    _sandbox_sessions[sandbox.claim_name] = sandbox
-    return {"id": sandbox.claim_name, "status": "RUNNING"}
+    _sandbox_sessions[sandbox.sandbox_id] = sandbox
+    return {"id": sandbox.sandbox_id, "status": "RUNNING"}
 
 
 async def delete_sandbox_claim(namespace: str, claim_id: str):
@@ -609,23 +609,13 @@ async def delete_sandbox_claim(namespace: str, claim_id: str):
         mock_claims.pop(claim_id, None)
         return
 
-    _sandbox_sessions.pop(claim_id, None)
-    await init_k8s_connection()
-    async with client.ApiClient() as api_client:
-        custom_api = client.CustomObjectsApi(api_client)
-        try:
-            await custom_api.delete_namespaced_custom_object(
-                group="extensions.agents.x-k8s.io",
-                version="v1alpha1",
-                namespace=namespace,
-                plural="sandboxclaims",
-                name=claim_id,
-            )
-        except client.exceptions.ApiException as e:
-            if e.status != 404:
-                raise Exception(f"Failed to delete claim on GKE: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Failed to delete claim on GKE: {str(e)}")
+    sandbox = _sandbox_sessions.pop(claim_id, None)
+    if sandbox is None:
+        return
+    try:
+        await asyncio.to_thread(sandbox.terminate)
+    except Exception as e:
+        raise Exception(f"Failed to delete claim on GKE: {str(e)}")
 
 
 def _sandbox_routing_headers(provider: str, vllm_namespace: str) -> dict:
