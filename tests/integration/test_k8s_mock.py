@@ -145,15 +145,18 @@ async def test_deploy_showcase_k8s_timeout(mock_init, init_memory_db):
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
 @mock.patch("showcase_admin.app.k8s_client.init_k8s_connection")
 async def test_create_sandbox_claim_api_exceptions(mock_init):
-    import kubernetes_asyncio.client as k8s_client
-    mock_custom = mock.MagicMock()
-    mock_custom.create_namespaced_custom_object = mock.AsyncMock(side_effect=k8s_client.exceptions.ApiException(status=404))
-    
-    with mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom), \
-         mock.patch("kubernetes_asyncio.client.ApiClient"):
-        
-        with pytest.raises(Exception, match="GKE cluster capability 'Agent Sandbox' is currently being enabled"):
+    import showcase_admin.app.k8s_client as sak
+    # Failure: the session helper (official client) raises -> wrapped error.
+    with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync", side_effect=Exception("boom")):
+        with pytest.raises(Exception, match="Failed to claim sandbox on GKE"):
             await create_sandbox_claim("test-ns", "claim-1")
+    # Success: returns the client's generated claim name and registers the session.
+    with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync",
+                    return_value=mock.MagicMock(claim_name="sandbox-claim-abcd")):
+        res = await create_sandbox_claim("test-ns")
+        assert res == {"id": "sandbox-claim-abcd", "status": "RUNNING"}
+        assert "sandbox-claim-abcd" in sak._sandbox_sessions
+    sak._sandbox_sessions.clear()
 
 @pytest.mark.anyio
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
@@ -206,26 +209,31 @@ async def test_real_mode_k8s_client_helpers(mock_init, init_memory_db):
          mock.patch("showcase_admin.app.k8s_client.get_gateway_ip", return_value="10.0.0.1"), \
          mock.patch("kubernetes_asyncio.client.ApiClient"):
         
-        # 1. List claims
+        import showcase_admin.app.k8s_client as sak
+        # 1. List claims (from the in-memory session registry)
+        sak._sandbox_sessions.clear()
+        sak._sandbox_sessions["sb-1"] = object()
         claims = await list_sandbox_claims("test-ns")
         assert len(claims) == 1
         assert claims[0]["id"] == "sb-1"
-        
-        # 1b. List claims 404
-        mock_custom.list_namespaced_custom_object.side_effect = k8s_client.exceptions.ApiException(status=404)
+
+        # 1b. Empty registry -> empty list
+        sak._sandbox_sessions.clear()
         assert await list_sandbox_claims("test-ns") == []
-        
-        # 2. Delete claim
+
+        # 2. Delete claim (pops the registry and deletes the SandboxClaim)
+        sak._sandbox_sessions["sb-1"] = object()
         await delete_sandbox_claim("test-ns", "sb-1")
         mock_custom.delete_namespaced_custom_object.assert_called_once()
-        
-        # 3. Message claim
-        rep = await message_sandbox_claim("test-ns", "sb-1", "msg", "vertex", "vllm-ns")
-        assert rep == "real mock reply"
-        
-        # 4. Quote claim
-        qt = await quote_sandbox_claim("test-ns", "sb-1", "vertex", "vllm-ns")
-        assert qt == "real mock quote"
+
+        # 3/4. Message + quote route through the live session
+        sak._sandbox_sessions["sb-1"] = object()
+        with mock.patch("showcase_admin.app.k8s_client._sandbox_request_sync", return_value=mock_http):
+            rep = await message_sandbox_claim("test-ns", "sb-1", "msg", "vertex", "vllm-ns")
+            assert rep == "real mock reply"
+            qt = await quote_sandbox_claim("test-ns", "sb-1", "vertex", "vllm-ns")
+            assert qt == "real mock quote"
+        sak._sandbox_sessions.clear()
         
         # 5. Query GPU
         gpu_rep = await query_gpu_inference_server("test-ns", "query")
@@ -397,23 +405,22 @@ async def test_k8s_client_thorough_coverage():
             with pytest.raises(httpx.RequestError):
                 await execute_http_with_retry("GET", "http://url", max_retries=1)
                 
-        # 3. Sandbox Claims Exceptions & Success
+        # 3. Sandbox Claims: delete error + create success/failure (official-client path)
+        import showcase_admin.app.k8s_client as sak
         mock_custom = mock.MagicMock()
-        mock_custom.list_namespaced_custom_object = mock.AsyncMock(side_effect=k8s_client.exceptions.ApiException(status=500))
-        mock_custom.create_namespaced_custom_object = mock.AsyncMock() # success
         mock_custom.delete_namespaced_custom_object = mock.AsyncMock(side_effect=Exception("del error"))
         with mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom):
-            with pytest.raises(Exception, match="Failed to list claims on GKE"):
-                await list_sandbox_claims("ns")
-            res = await create_sandbox_claim("ns", "c1")
-            assert res == {"id": "c1", "status": "RUNNING"}
+            sak._sandbox_sessions["c1"] = object()
             with pytest.raises(Exception, match="Failed to delete claim on GKE"):
                 await delete_sandbox_claim("ns", "c1")
-                
-        mock_custom.create_namespaced_custom_object = mock.AsyncMock(side_effect=k8s_client.exceptions.ApiException(status=500))
-        with mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom):
+        with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync",
+                        return_value=mock.MagicMock(claim_name="c1")):
+            res = await create_sandbox_claim("ns")
+            assert res == {"id": "c1", "status": "RUNNING"}
+        with mock.patch("showcase_admin.app.k8s_client._create_sandbox_session_sync", side_effect=Exception("boom")):
             with pytest.raises(Exception, match="Failed to claim sandbox on GKE"):
-                await create_sandbox_claim("ns", "c1")
+                await create_sandbox_claim("ns")
+        sak._sandbox_sessions.clear()
                 
         # 4. REST APIs with SANDBOX_ROUTER_URL and 500 errors
         mock_500 = mock.MagicMock(status_code=500, text="Internal Error")
