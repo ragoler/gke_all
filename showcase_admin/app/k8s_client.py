@@ -535,13 +535,13 @@ async def execute_http_with_retry(method: str, url: str, headers: dict = None, j
 # ----------------------------------------------------------------------
 # Standard, documented path (cloud.google.com/kubernetes-engine/docs/how-to/agent-sandbox):
 # an in-cluster controller uses SandboxDirectConnectionConfig to the sandbox-router, and
-# create_sandbox(warmpool=...) claims a pre-warmed pod. The client resolves the bound
-# Sandbox id (which, for a warm pool, differs from the claim name) and connector.send_request
-# routes HTTP to the sandbox. Live Sandbox handles are kept in-memory per Hub process
-# (single-user demo), keyed by the resolved sandbox id.
+# create_sandbox(template=...) claims a sandbox (auto-adopting a pre-warmed pod from the
+# SandboxWarmPool bound to that template). The client resolves the bound Sandbox id (which,
+# for a warm pool, differs from the claim name) and connector.send_request routes HTTP to
+# the sandbox. Live Sandbox handles are kept in-memory per Hub process, keyed by sandbox id.
 _sandbox_sessions: dict = {}
 
-WARMPOOL_NAME = "agent-sandbox-warmpool"
+TEMPLATE_NAME = "agent-sandbox-template"
 
 
 def _build_sandbox_client(namespace: str):
@@ -557,9 +557,14 @@ def _build_sandbox_client(namespace: str):
 
 
 def _create_sandbox_session_sync(namespace: str):
-    """Blocking: claim a pre-warmed sandbox and wait until it is ready (via asyncio.to_thread)."""
+    """Blocking: claim a sandbox and wait until it is ready (via asyncio.to_thread).
+
+    template is required by the 0.4.x client; the claim auto-adopts a pre-warmed pod from
+    the SandboxWarmPool that references the same template, and the client resolves the
+    bound sandbox id (which differs from the claim name for a warm pool).
+    """
     sandbox_client = _build_sandbox_client(namespace)
-    return sandbox_client.create_sandbox(warmpool=WARMPOOL_NAME, namespace=namespace)
+    return sandbox_client.create_sandbox(template=TEMPLATE_NAME, namespace=namespace)
 
 
 def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dict = None, headers: dict = None):
