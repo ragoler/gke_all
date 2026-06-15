@@ -530,70 +530,86 @@ async def execute_http_with_retry(method: str, url: str, headers: dict = None, j
             last_response.raise_for_status()
 
 
-# --- FEATURE 1: AGENT SANDBOX CLAIMS ---
+# ----------------------------------------------------------------------
+# FEATURE 1: AGENT SANDBOX — via the official k8s-agent-sandbox client
+# ----------------------------------------------------------------------
+# The standard, supported path (per GKE docs and ragoler/AgentSandboxExample): the client
+# creates the SandboxClaim, waits for readiness + the gateway IP, and routes requests
+# through the sandbox-router for us. This replaces the hand-rolled claim + X-Sandbox-Id
+# routing that kept breaking on upstream changes. Live sessions are held in-memory per Hub
+# process (single-user demo), keyed by the client's generated claim name.
+_sandbox_sessions: dict = {}
+
+
+def _build_sandbox_client(namespace: str):
+    # Imported lazily so MOCK mode and local tests don't require the library installed.
+    from k8s_agent_sandbox import SandboxClient
+    return SandboxClient(
+        template_name="agent-sandbox-template",
+        gateway_name="agent-sandbox-gateway",
+        namespace=namespace,
+        server_port=8888,
+    )
+
+
+def _create_sandbox_session_sync(namespace: str):
+    """Blocking: create a claim and wait until it is routable (run via asyncio.to_thread)."""
+    sandbox = _build_sandbox_client(namespace)
+    sandbox._create_claim()
+    sandbox._wait_for_sandbox_ready()
+    sandbox._wait_for_gateway_ip()
+    return sandbox
+
+
+def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dict = None, headers: dict = None):
+    """Blocking request through the router, retrying transient 502s during NEG warm-up."""
+    import time
+    last = None
+    for _ in range(30):
+        try:
+            resp = sandbox._request(method, endpoint, json=json_payload, headers=headers or {})
+            if resp.status_code != 502:
+                return resp
+            last = resp
+        except Exception:
+            pass
+        time.sleep(1.0)
+    if last is not None:
+        return last
+    return sandbox._request(method, endpoint, json=json_payload, headers=headers or {})
+
+
 async def list_sandbox_claims(namespace: str) -> list:
     if config.MODE == "MOCK":
         return [{"id": cid, "status": "RUNNING"} for cid in mock_claims.keys()]
-        
-    await init_k8s_connection()
-    async with client.ApiClient() as api_client:
-        custom_api = client.CustomObjectsApi(api_client)
-        try:
-            claims = await custom_api.list_namespaced_custom_object(
-                group="extensions.agents.x-k8s.io",
-                version="v1alpha1",
-                namespace=namespace,
-                plural="sandboxclaims"
-            )
-            result = []
-            for item in claims.get("items", []):
-                result.append({
-                    "id": item["metadata"]["name"],
-                    "status": item.get("status", {}).get("phase", "PENDING")
-                })
-            return result
-        except client.exceptions.ApiException as e:
-            if e.status == 404:
-                # GKE capability is still enabling in the background, return empty list
-                return []
-            raise Exception(f"Failed to list claims on GKE: {str(e)}")
+    # Only sessions this Hub process can route are listed (in-memory registry; a Hub
+    # restart clears it and the user simply re-allocates).
+    return [{"id": name, "status": "RUNNING"} for name in list(_sandbox_sessions.keys())]
 
-async def create_sandbox_claim(namespace: str, claim_id: str) -> dict:
+
+async def create_sandbox_claim(namespace: str, claim_id: str = None) -> dict:
     if config.MODE == "MOCK":
-        mock_claims[claim_id] = "ACTIVE"
-        return {"id": claim_id, "status": "RUNNING"}
-        
+        cid = claim_id or f"sb-{uuid.uuid4().hex[:8]}"
+        mock_claims[cid] = "ACTIVE"
+        return {"id": cid, "status": "RUNNING"}
+
     await init_k8s_connection()
-    async with client.ApiClient() as api_client:
-        custom_api = client.CustomObjectsApi(api_client)
-        doc = {
-            "apiVersion": "extensions.agents.x-k8s.io/v1alpha1",
-            "kind": "SandboxClaim",
-            "metadata": {"name": claim_id, "namespace": namespace},
-            "spec": {
-                "sandboxTemplateRef": {"name": "agent-sandbox-template"}
-            }
-        }
-        try:
-            await custom_api.create_namespaced_custom_object(
-                group="extensions.agents.x-k8s.io",
-                version="v1alpha1",
-                namespace=namespace,
-                plural="sandboxclaims",
-                body=doc
-            )
-            return {"id": claim_id, "status": "RUNNING"}
-        except client.exceptions.ApiException as e:
-            if e.status == 404:
-                raise Exception("GKE cluster capability 'Agent Sandbox' is currently being enabled in the background. Please wait about 2 minutes for the control plane to complete updating, then try again.")
-            raise Exception(f"Failed to claim sandbox on GKE: {str(e)}")
+    try:
+        sandbox = await asyncio.to_thread(_create_sandbox_session_sync, namespace)
+    except ImportError as e:
+        raise Exception(f"Agent Sandbox client library unavailable: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Failed to claim sandbox on GKE: {str(e)}")
+    _sandbox_sessions[sandbox.claim_name] = sandbox
+    return {"id": sandbox.claim_name, "status": "RUNNING"}
+
 
 async def delete_sandbox_claim(namespace: str, claim_id: str):
     if config.MODE == "MOCK":
-        if claim_id in mock_claims:
-            del mock_claims[claim_id]
+        mock_claims.pop(claim_id, None)
         return
-        
+
+    _sandbox_sessions.pop(claim_id, None)
     await init_k8s_connection()
     async with client.ApiClient() as api_client:
         custom_api = client.CustomObjectsApi(api_client)
@@ -603,91 +619,56 @@ async def delete_sandbox_claim(namespace: str, claim_id: str):
                 version="v1alpha1",
                 namespace=namespace,
                 plural="sandboxclaims",
-                name=claim_id
+                name=claim_id,
             )
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise Exception(f"Failed to delete claim on GKE: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to delete claim on GKE: {str(e)}")
 
-async def get_claim_sandbox_name(namespace: str, claim_id: str) -> str:
-    """Resolve a SandboxClaim to its bound sandbox's routable name.
 
-    The agent-sandbox operator binds a claim to a warm-pool Sandbox whose own name — not
-    the claim id — is the addressable Service hostname. The router proxies to
-    ``<name>.<namespace>.svc.cluster.local:8888``, so message/quote must target the bound
-    name. Falls back to the claim id if the binding isn't reported yet.
-    """
-    await init_k8s_connection()
-    try:
-        async with client.ApiClient() as api_client:
-            custom_api = client.CustomObjectsApi(api_client)
-            claim = await custom_api.get_namespaced_custom_object(
-                group="extensions.agents.x-k8s.io",
-                version="v1alpha1",
-                namespace=namespace,
-                plural="sandboxclaims",
-                name=claim_id,
-            )
-        sandbox = (claim.get("status", {}) or {}).get("sandbox", {}) or {}
-        # The CRD reports the bound sandbox under "Name" (capitalized).
-        return sandbox.get("Name") or sandbox.get("name") or claim_id
-    except Exception:
-        return claim_id
+def _sandbox_routing_headers(provider: str, vllm_namespace: str) -> dict:
+    return {
+        "X-Sandbox-Provider": provider,
+        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
+    }
+
 
 async def message_sandbox_claim(namespace: str, claim_id: str, message: str, provider: str, vllm_namespace: str) -> str:
     if config.MODE == "MOCK":
         return f"[{claim_id}] Mock reply using model routing '{provider}': Recieved your prompt '{message}'."
-        
-    sandbox_name = await get_claim_sandbox_name(namespace, claim_id)
 
-    if config.SANDBOX_ROUTER_URL:
-        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/message"
-    else:
-        gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
-        url = f"http://{gateway_ip}/message"
-
-    headers = {
-        "X-Sandbox-Id": sandbox_name,
-        "X-Sandbox-Namespace": namespace,
-        "X-Sandbox-Provider": provider,
-        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
-        "Content-Type": "application/json"
-    }
-
-    payload = {"message": message}
-        
+    sandbox = _sandbox_sessions.get(claim_id)
+    if not sandbox:
+        return "Failed to communicate with GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
     try:
-        response = await execute_http_with_retry("POST", url, headers=headers, json_payload=payload, timeout=45.0)
-        if response.status_code != 200:
-            raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
-        return response.json().get("reply", "")
+        resp = await asyncio.to_thread(
+            _sandbox_request_sync, sandbox, "POST", "message",
+            {"message": message}, _sandbox_routing_headers(provider, vllm_namespace),
+        )
+        if resp.status_code != 200:
+            raise Exception(f"sandbox returned {resp.status_code}: {resp.text}")
+        return resp.json().get("reply", "")
     except Exception as e:
         return f"Failed to communicate with GKE sandbox: {str(e)}"
+
 
 async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm_namespace: str) -> str:
     if config.MODE == "MOCK":
         return f"\"The best way to predict the future is to invent it.\" - Routed via GKE Sandbox [{claim_id}] using provider '{provider}'."
-        
-    sandbox_name = await get_claim_sandbox_name(namespace, claim_id)
 
-    if config.SANDBOX_ROUTER_URL:
-        url = f"{config.SANDBOX_ROUTER_URL.rstrip('/')}/quote"
-    else:
-        gateway_ip = await get_gateway_ip(namespace, "agent-sandbox-gateway")
-        url = f"http://{gateway_ip}/quote"
-
-    headers = {
-        "X-Sandbox-Id": sandbox_name,
-        "X-Sandbox-Namespace": namespace,
-        "X-Sandbox-Provider": provider,
-        "X-Sandbox-Vllm-Endpoint": f"http://vllm-service.{vllm_namespace}.svc.cluster.local:8000/v1",
-        "Content-Type": "application/json"
-    }
-    
+    sandbox = _sandbox_sessions.get(claim_id)
+    if not sandbox:
+        return "Failed to fetch quotes from GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
     try:
-        response = await execute_http_with_retry("GET", url, headers=headers, timeout=45.0)
-        if response.status_code != 200:
-            raise Exception(f"Sandbox router returned error {response.status_code}: {response.text}")
-        return response.json().get("quote", "")
+        resp = await asyncio.to_thread(
+            _sandbox_request_sync, sandbox, "GET", "quote",
+            None, _sandbox_routing_headers(provider, vllm_namespace),
+        )
+        if resp.status_code != 200:
+            raise Exception(f"sandbox returned {resp.status_code}: {resp.text}")
+        return resp.json().get("quote", "")
     except Exception as e:
         return f"Failed to fetch quotes from GKE sandbox: {str(e)}"
 
