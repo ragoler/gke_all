@@ -1,45 +1,47 @@
-# Tier 1: G2 Spot (NVIDIA L4)
+# Single Custom Compute Class with an ordered fallback chain, so the vLLM GPU node
+# provisions even when a tier is unavailable (Spot stockout, family/zone capacity).
+#
+# Fallback order: G2 Spot (NVIDIA L4) -> G4 Spot -> G2 on-demand (L4) -> G4 on-demand.
+# The vLLM Deployment selects this via a REQUIRED nodeSelector:
+#     cloud.google.com/compute-class: gpu-inference-flex
+# nodePoolAutoCreation lets the CCC auto-create the node pool for the active tier, which
+# requires cluster Node Auto-Provisioning (enabled in build_infra.sh). activeMigration
+# keeps the workload on the highest-priority tier that has capacity.
 apiVersion: cloud.google.com/v1
 kind: ComputeClass
 metadata:
-  name: g2-spot
+  name: gpu-inference-flex
 spec:
-  machineFamily: g2
-  machineType: g2-standard-8
-  spot: true
-  accelerator:
-    type: nvidia-l4
-    count: 1
----
-# Tier 2: G4 Spot (NVIDIA T4 / L4G)
-apiVersion: cloud.google.com/v1
-kind: ComputeClass
-metadata:
-  name: g4-spot
-spec:
-  machineFamily: g4
-  machineType: g4-standard-8
-  spot: true
----
-# Tier 3: G2 On-Demand (NVIDIA L4)
-apiVersion: cloud.google.com/v1
-kind: ComputeClass
-metadata:
-  name: g2-ondemand
-spec:
-  machineFamily: g2
-  machineType: g2-standard-8
-  spot: false
-  accelerator:
-    type: nvidia-l4
-    count: 1
----
-# Tier 4: G4 On-Demand (NVIDIA T4 / L4G)
-apiVersion: cloud.google.com/v1
-kind: ComputeClass
-metadata:
-  name: g4-ondemand
-spec:
-  machineFamily: g4
-  machineType: g4-standard-8
-  spot: false
+  priorities:
+    # Tier 1: G2 Spot (NVIDIA L4) — cheapest, preferred.
+    - machineFamily: g2
+      gpu:
+        type: nvidia-l4
+        count: 1
+        driverVersion: default
+      spot: true
+    # Tier 2: G4 Spot (NVIDIA RTX PRO 6000).
+    - machineFamily: g4
+      gpu:
+        type: nvidia-rtx-pro-6000
+        count: 1
+        driverVersion: latest
+      spot: true
+    # Tier 3: G2 on-demand (NVIDIA L4) — reliable fallback when Spot is stocked out.
+    - machineFamily: g2
+      gpu:
+        type: nvidia-l4
+        count: 1
+        driverVersion: default
+      spot: false
+    # Tier 4: G4 on-demand (NVIDIA RTX PRO 6000) — last resort.
+    - machineFamily: g4
+      gpu:
+        type: nvidia-rtx-pro-6000
+        count: 1
+        driverVersion: latest
+      spot: false
+  nodePoolAutoCreation:
+    enabled: true
+  activeMigration:
+    optimizeRulePriority: true
