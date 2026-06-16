@@ -853,6 +853,14 @@ async def check_and_update_showcase_status(name: str, namespace: str):
                             showcase.status = "ACTIVE"
                             showcase.reach_out_url = await resolve_reach_out_url(name, namespace)
                             db.commit()
+                        elif is_ready and showcase.status == "ACTIVE" and not showcase.reach_out_url:
+                            # Late-binding link-out URL: a feature can become ACTIVE (Deployment
+                            # ready) before its LoadBalancer gets an external IP, leaving the
+                            # "Open Showcase" link null. Re-resolve once the address exists.
+                            url = await resolve_reach_out_url(name, namespace)
+                            if url:
+                                showcase.reach_out_url = url
+                                db.commit()
                         elif not is_ready and showcase.status == "ACTIVE":
                             # A Ready backend lost its replicas (Spot reclaim / pod eviction);
                             # the workload self-heals via the CCC, so report re-provisioning.
