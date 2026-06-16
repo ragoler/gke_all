@@ -109,6 +109,10 @@ echo "Pre-flight image validation passed successfully."
 echo "Verifying and enabling Network Services API for GKE Gateway Service Extensions..."
 gcloud services enable networkservices.googleapis.com --project="$PROJECT_ID" --quiet || echo "Network Services API already enabled."
 
+# Image Streaming (gcfs) needs the Container File System API.
+echo "Verifying and enabling Container File System API (for Image Streaming)..."
+gcloud services enable containerfilesystem.googleapis.com --project="$PROJECT_ID" --quiet || echo "Container File System API already enabled."
+
 
 # Pre-flight validation: ensure proxy-only subnet exists in region for Regional Gateway API
 echo "Verifying and provisioning proxy-only subnet in region $REGION for Regional Gateway API..."
@@ -139,6 +143,8 @@ if gcloud container clusters describe "$CLUSTER_NAME" --region="$REGION" --proje
       --enable-autoprovisioning --min-cpu=0 --max-cpu=200 --min-memory=0 --max-memory=2000 \
       --max-accelerator=type=nvidia-l4,count=8 --max-accelerator=type=nvidia-rtx-pro-6000,count=8 \
       --quiet || echo "Node Auto-Provisioning already enabled or update in progress."
+  echo "Verifying and enabling Image Streaming (streams the 14GB+ vLLM image so GPU pods start in seconds, not a ~9min pull)..."
+  gcloud container clusters update "$CLUSTER_NAME" --region="$REGION" --project="$PROJECT_ID" --enable-image-streaming --quiet || echo "Image Streaming already enabled or update in progress."
 else
   echo "Creating base GKE Cluster with Workload Identity, Gateway API, and Agent Sandbox..."
   # Pin the version only if CLUSTER_VERSION is set; otherwise use the channel default.
@@ -159,6 +165,7 @@ else
       --workload-pool="${PROJECT_ID}.svc.id.goog" \
       --gateway-api=standard \
       --enable-agent-sandbox \
+      --enable-image-streaming \
       --enable-autoprovisioning \
       --min-cpu=0 --max-cpu=200 --min-memory=0 --max-memory=2000 \
       --max-accelerator=type=nvidia-l4,count=8 \
