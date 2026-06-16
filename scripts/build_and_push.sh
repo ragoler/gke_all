@@ -21,6 +21,7 @@ fi
 # Fallback to gcloud config project if PROJECT_NAME is blank
 PROJECT_ID=${PROJECT_NAME:-$(gcloud config get-value project)}
 REGION=${REGION:-"us-west1"}
+CLUSTER_NAME=${CLUSTER_NAME:-"gke-showcase-cluster"}
 REPO_NAME=${ARTIFACT_REGISTRY_REPO:-"gke-showcase-repo"}
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
@@ -146,6 +147,13 @@ maybe_rollout() {
   [ "$ROLLOUT" = "true" ] || { echo "Skipping rollout (--no-rollout)."; return; }
   if ! command -v kubectl >/dev/null 2>&1; then
     echo "kubectl not found; skipping rollout (images are pushed)."; return
+  fi
+  # Point kubectl at the showcase cluster before rolling. Without this, a build machine whose
+  # kubectl context is elsewhere (or unset) silently fails the reachability check below, so the
+  # images get pushed but the Deployments never roll — leaving stale pods on :latest.
+  if command -v gcloud >/dev/null 2>&1; then
+    gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$REGION" --project "$PROJECT_ID" >/dev/null 2>&1 \
+      || echo "Note: could not fetch credentials for $CLUSTER_NAME (${REGION}); using current kubectl context."
   fi
   if ! kubectl get namespace gke-showcase-admin >/dev/null 2>&1; then
     echo "No reachable showcase cluster; skipping rollout (images are pushed)."; return
