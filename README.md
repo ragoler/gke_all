@@ -19,6 +19,8 @@ The project is structured to be completely modular and plug-and-play:
 ```
 ├── README.md                       # Project documentation & setup instructions
 ├── design.md                       # High-fidelity architectural specifications
+├── feature.md                      # THE feature-authoring contract (read this to add a feature)
+├── features.md                     # Candidate-features roadmap survey
 ├── plan.md                         # Granular milestones and task checklists
 ├── agent.md                        # Mandatory AI agent operational & quality rules
 ├── build_infra.sh                  # Master GKE cluster bootstrapper script
@@ -45,10 +47,15 @@ The project is structured to be completely modular and plug-and-play:
 │   │   ├── demo-app/               # Isolated workload FastAPI container code
 │   │   ├── frontend/               # Standalone Sandbox UI playroom (HTML/CSS/JS)
 │   │   └── infra/                  # Standalone Gateway, Route, Template manifests
-│   └── gpu-inference/              # FEATURE 2: Spot NVIDIA L4 GPU + GCSFuse vLLM model
-│       ├── app/                    # Chat playground client container code
-│       ├── frontend/               # Standalone Chat UI playroom (HTML/CSS/JS)
-│       └── infra/                  # Standalone Gateway, vLLM Deployment, GCSFuse manifests
+│   ├── gpu-inference/              # FEATURE 2: GPU (Custom Compute Class + NAP) vLLM model
+│   │   ├── app/                    # Chat playground client container code
+│   │   ├── frontend/               # Standalone Chat UI playroom (HTML/CSS/JS)
+│   │   └── infra/                  # Gateway, vLLM Deployment, ComputeClass (GPU fallback)
+│   └── inference-gateway/          # FEATURE 3: GKE Inference Gateway (llm-d) — git SUBMODULE
+│       │                           #   link-out feature from ragoler/inference_gateway
+│       ├── cluster/                # cluster-scoped prereq: GAIE CRDs (kustomize, apply -k)
+│       ├── infra/ + k8s/           # InferencePool, EPP, Gateway, GPU sharing, client app
+│       └── feature.yaml            # entrypoint_service (link-out); paths.cluster_dir
 └── tests/                          # Automated Testing Suite
     ├── conftest.py                 # Global mock environment parameters
     ├── unit/                       # Unit tests for Config, JWT Auth, and SQLite CRUD
@@ -127,21 +134,21 @@ Configure `.env` with `MODE=REAL` and your target Artifact Registry configuratio
 ```bash
 ./scripts/build_and_push.sh
 ```
-*   **What this does**: Automatically creates your Artifact Registry repository if missing, authenticates Docker to GCP, compiles all container targets (Showcase Hub Admin, Sandbox Demo workload, Sandbox Router, and GPU Inference Chat Client), copies all feature UI assets into the Admin container, and uploads them to GCP.
-*   *Optimization*: You can build a specific image using the `--feature` flag (e.g., `./scripts/build_and_push.sh --feature admin`).
+*   **What this does**: Syncs feature submodules, creates your Artifact Registry repository if missing, authenticates Docker to GCP, compiles all container targets discovered from `features/*/feature.yaml` (Showcase Hub Admin, Sandbox Demo, Sandbox Router, GPU Inference Chat Client, Inference-Gateway client app), copies all feature UI assets into the Admin container, uploads them, and then rolls the affected Deployments (it fetches cluster credentials first, so this works from a dedicated build machine).
+*   *Optimization*: You can build a specific image using the `--feature` flag (e.g., `./scripts/build_and_push.sh --feature admin`). Use `--no-rollout` to skip the post-push rollout.
 
 ### Step 2: Bootstrap GKE Cluster & Base Configurations
 Run the bootstrapping automation script:
 ```bash
 ./build_infra.sh
 ```
-*   **What this does**: Provisions a 2-node base GKE cluster for the Admin Hub pod with Workload Identity enabled, deploys the Admin Gateway, and mounts SQLite storage to a PersistentDisk PVC. 
-*   *Note*: Specialized node pools (gVisor and Spot L4 GPU pools) are **not** created here; they are provisioned dynamically when individual features are deployed.
+*   **What this does**: Provisions the base GKE cluster (Workload Identity, Gateway API, Agent Sandbox, GCSFuse CSI, and Node Auto-Provisioning with GPU accelerator limits), creates the proxy-only subnet, the zero-cost autoscaling gVisor node pool, applies each feature's cluster-scoped prerequisites (`paths.cluster_dir` — e.g. the Inference-Gateway GAIE CRDs via `kubectl apply -k`), binds Workload Identity / Artifact Registry IAM, and deploys the Admin Hub (LoadBalancer Service) with SQLite on a PersistentDisk PVC.
+*   *Note*: No GPU node pools are pre-created — GPU nodes are provisioned on demand by each feature's `ComputeClass` + Node Auto-Provisioning (with Spot→on-demand and L4↔RTX fallback), so a Spot stockout never blocks a deploy.
 
 ### Step 3: Access and Dynamic Showcase Installation
-1. Find the external IP address of the Admin Gateway:
+1. Find the external IP address of the Admin Hub (exposed via a LoadBalancer Service):
    ```bash
-   kubectl get gateway external-http-gateway -n gke-showcase-admin
+   kubectl get svc showcase-admin-svc -n gke-showcase-admin
    ```
 2. Open the external IP address in your browser and log in using your credentials.
 3. **Deploy Showcases**: Input a custom namespace and click **"Deploy"**. GKE will dynamically provision a dedicated external Gateway IP for the feature.

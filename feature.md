@@ -93,6 +93,14 @@ gateway:
   name: my-feature-gateway       # metadata.name of your Gateway resource
   class: gke-l7-gxlb             # or gke-l7-rilb (internal), etc.
 
+# UI integration — choose ONE model (see §2a):
+#  (a) Hub-hosted playroom: set paths.frontend_dir + paths.playroom_slug (+ usually
+#      hub_router). The Hub mirrors your UI and serves it at /<slug>/.
+#  (b) Link-out: set entrypoint_service to a LoadBalancer Service name. The Hub's
+#      "Feature dashboard ↗" links straight to that Service's external IP (new tab); the
+#      feature serves its own UI + API. No frontend_dir/playroom_slug/hub_router.
+entrypoint_service: my-feature-svc   # link-out only; omit for hub-hosted playroom
+
 # Container images the Hub build pipeline should produce (omit if you use only
 # public/prebuilt images)
 build:
@@ -131,6 +139,32 @@ hub_router: "hub_router:router"
 Keep it declarative. If you find yourself wanting the Hub to special-case your
 feature, that's a sign the descriptor schema should grow a field instead — raise it.
 
+> **Every `${VAR}` your manifests reference MUST be either a Hub-standard variable (§3)
+> or declared in `template_defaults`.** Anything undeclared is left as the literal text
+> `${VAR}` and your apply fails (or silently mis-configures). After authoring, grep your
+> manifests for `\${[A-Z_]+}` and confirm each one is covered.
+
+---
+
+## 2a. Two UI integration models
+
+A feature surfaces its UI in exactly one of two ways. Pick based on whether the Hub
+should host the UI or just link to it.
+
+| | **Hub-hosted playroom** | **Link-out** |
+|---|---|---|
+| Declares | `paths.frontend_dir` + `paths.playroom_slug` (+ usually `hub_router`) | `entrypoint_service: <LoadBalancer Service name>` |
+| UI served by | the Hub (mirrors your static UI, serves at `/<slug>/`) | the feature itself, at its own external LoadBalancer |
+| Data-plane API | your `hub_router` mounted at `/api/features/<name>` (behind the Hub JWT) | the feature's own app at its own IP (CORS) |
+| "Feature dashboard" link | internal Hub path (same tab) | the Service's external IP (opens in a **new tab**) |
+| Examples | `agent-sandbox`, `gpu-inference` | `inference-gateway` |
+| Best for | light playrooms whose API the Hub can front | self-contained apps (their own richer UI/API/streaming) |
+
+Don't mix them: a link-out feature has no `frontend_dir`/`playroom_slug`/`hub_router`; a
+hub-hosted feature has no `entrypoint_service`. The Hub resolves the link-out address from
+the `entrypoint_service` Service once its LoadBalancer gets an external IP (it re-resolves
+on later polls, so a slow LB doesn't leave a dead link).
+
 ---
 
 ## 3. Infra manifests (`infra/`)
@@ -154,6 +188,26 @@ On teardown it deletes the whole namespace.
 
 **Rules that keep features isolated and Hub-friendly:**
 
+- **Be namespace-portable — never hardcode `default`.** The Hub deploys each feature into
+  its own namespace (`gke-showcase-<name>`), not `default`. A demo authored to run
+  standalone in `default` *will* break under the Hub unless every namespace reference is
+  `${NAMESPACE}` (or resolved at runtime). The Hub helps with two of these automatically:
+  it rewrites each manifest's `metadata.namespace` **and** rewrites `ServiceAccount`
+  subjects in `RoleBinding`/`ClusterRoleBinding` to the deploy namespace. But it can NOT
+  fix references it doesn't understand — you must handle these yourself:
+    - **Container args / env** that name a namespace (e.g. an EPP `--pool-namespace`, a
+      cross-namespace Service host) → use `${NAMESPACE}`.
+    - **App code** that needs its own namespace → read it at runtime from the downward API
+      (`env: POD_NAMESPACE → fieldRef: metadata.namespace`), never assume `default`.
+    - **Cross-resource refs** in spec fields (a `parentRef`/`backendRef`/`poolRef` that
+      points at another namespace) → `${NAMESPACE}`, or omit namespace for same-namespace.
+  Keep standalone working by defaulting `NAMESPACE=default` in your own `setup_infra.sh`
+  (so `${NAMESPACE}` still renders) — that's exactly how `inference-gateway` does both.
+- **RBAC is fine to ship.** Features may include their own `ServiceAccount`, `Role`,
+  `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`; the Hub applies them (and the admin
+  SA has `bind`/`escalate`, so a feature can grant its workload permissions). Bindings'
+  `ServiceAccount` subjects are namespace-rewritten for you (see above) — but still author
+  them portably so standalone works too.
 - **Decentralized gateway.** Ship your own `Gateway` + `HTTPRoute`; never share the
   admin gateway. Its `metadata.name` must match `gateway.name` in `feature.yaml`.
 - **Stable Service name.** The `HTTPRoute` backend and the `Service` your `hub_router`
@@ -195,11 +249,18 @@ Put them in `cluster_dir`. The Hub applies them at **cluster bootstrap**
 `paths.cluster_dir`. If your demo's standalone `setup_infra.sh` provisions these, mirror
 the same YAML into `cluster/` so the Hub path stays IaC and reproducible.
 
-Note: the Hub routes a `ComputeClass` found in a per-namespace `infra_dir` to the
+`cluster_dir` supports two forms, applied at bootstrap:
+- **Plain manifests** — every `*.yaml` is variable-expanded and `kubectl apply`-ed.
+- **A kustomize dir** — if `cluster_dir` contains a `kustomization.yaml`, the Hub runs
+  `kubectl apply -k` on it. This is how to install an upstream **CRD bundle**: e.g.
+  `inference-gateway`'s `cluster/kustomization.yaml` pulls the gateway-api-inference-extension
+  CRDs (`resources: [https://github.com/.../config/crd?ref=vX]`), pinned to a version.
+
+Note: the Hub also routes a `ComputeClass` found in a per-namespace `infra_dir` to the
 cluster-scoped API automatically, so a demo that keeps its ComputeClass alongside its
-other manifests still works without a separate `cluster_dir`. CRD bundles (e.g. installed
-via `kubectl apply -k` or Helm in a demo's own `setup_infra.sh`) are a one-time cluster
-setup — run them as part of cluster bootstrap; they are not a per-feature Hub concern.
+other manifests still works without a separate `cluster_dir`. Put genuinely cluster-once
+resources (CRD bundles especially) in `cluster_dir` so a fresh `build_infra.sh` installs
+them — don't rely on a demo's standalone `setup_infra.sh` having run.
 
 > This is the one structural gap between a typical standalone demo (which provisions
 > cluster + namespace together in `setup_infra.sh`) and a Hub feature (which assumes a
@@ -318,12 +379,19 @@ changes.
 ## 10. Pre-merge checklist
 
 - [ ] `feature.yaml` present and valid; `name`, `paths`, `deployment_name`, `gateway` set.
+- [ ] Exactly one UI model: hub-hosted (`frontend_dir` + `playroom_slug`) OR link-out
+      (`entrypoint_service`) — not both.
 - [ ] Dedicated `Gateway` + `HTTPRoute`; `HTTPRoute` backend Service is consistent.
 - [ ] `deployment_name` matches the real Deployment metadata name.
 - [ ] If the feature has a backend API: `hub_router` declared, router paths are relative
       to the `/api/features/<name>` mount, and it imports no Hub auth/routing internals.
-- [ ] All manifests namespace-templated with `${NAMESPACE}`.
-- [ ] Cluster-scoped resources (if any) live in `cluster/` and are declared.
+- [ ] **Namespace-portable**: no hardcoded `default` anywhere — `metadata.namespace`,
+      RBAC subjects, container args, and cross-resource refs use `${NAMESPACE}`; app code
+      reads `POD_NAMESPACE` (downward API). Standalone defaults `NAMESPACE=default`.
+- [ ] Every `${VAR}` in manifests is Hub-standard or declared in `template_defaults`
+      (`grep -rE '\$\{[A-Z_]+\}'` and check each).
+- [ ] Cluster-scoped resources (if any) live in `cluster/` and are declared (plain YAML,
+      or a `kustomization.yaml` for CRD bundles).
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
 - [ ] Standalone deploy still works (your own `setup_infra.sh`/`deploy_app.sh`).
