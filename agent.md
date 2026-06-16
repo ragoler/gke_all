@@ -165,7 +165,7 @@ sequenceDiagram
 
 ---
 
-## Rule 8: Testing Subagent API Mandate & Infrastructure Integrity
+## Rule 16: Testing Subagent API Mandate & Infrastructure Integrity
 Testing subagents invoked to verify live cloud deployments or run integration tests **MUST** strictly respect architectural boundaries and operate exactly like legitimate external clients.
 
 ### Operational Requirements
