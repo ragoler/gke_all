@@ -21,6 +21,13 @@ rules:
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Features may ship their own RBAC (e.g. inference-gateway's EPP ServiceAccount + roles).
+# The Hub deploys these on the user's behalf, so it needs to manage RBAC objects — plus
+# 'bind' and 'escalate', which Kubernetes requires to create Roles/Bindings granting
+# permissions the Hub SA does not itself already hold (privilege-escalation guard).
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "bind", "escalate"]
 # Custom resource integrations
 - apiGroups: ["extensions.agents.x-k8s.io"]
   resources: ["sandboxtemplates", "sandboxclaims", "sandboxwarmpools"]
@@ -34,7 +41,7 @@ rules:
   resources: ["httproutes", "gateways"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["networking.gke.io"]
-  resources: ["healthcheckpolicies"]
+  resources: ["healthcheckpolicies", "gcpbackendpolicies"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["inference.networking.k8s.io", "inference.networking.x-k8s.io"]
   resources: ["inferencepools", "inferenceobjectives"]

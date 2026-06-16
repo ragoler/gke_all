@@ -164,7 +164,16 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
             metadata = doc.setdefault("metadata", {})
             metadata["namespace"] = namespace
             name = metadata.get("name")
-            
+
+            # The Hub deploys each feature into its own namespace, so rewrite ServiceAccount
+            # subject namespaces in (Cluster)RoleBindings to match — otherwise a binding
+            # authored for the standalone (default) namespace silently references a SA that
+            # doesn't exist here, and the workload gets no permissions.
+            if kind in ("RoleBinding", "ClusterRoleBinding"):
+                for subject in doc.get("subjects", []) or []:
+                    if isinstance(subject, dict) and subject.get("kind") == "ServiceAccount":
+                        subject["namespace"] = namespace
+
             try:
                 # Built-in kinds via their typed APIs (CustomObjectsApi can't serve core/v1
                 # or cluster-scoped RBAC reliably). Everything else is treated as a CRD.
