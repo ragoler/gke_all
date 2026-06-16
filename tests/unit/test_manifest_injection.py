@@ -6,8 +6,24 @@ from unittest import mock
 # Ensure showcase-admin is in python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from showcase_admin.app.k8s_client import expand_template, deploy_showcase
+from showcase_admin.app.k8s_client import expand_template, deploy_showcase, _crd_plural
 from showcase_admin.app.database import Base, engine, SessionLocal, ShowcaseModel
+
+
+def test_crd_plural_rules():
+    # Regular and irregular Kubernetes CRD pluralization used by apply_yaml_manifests.
+    cases = {
+        "InferencePool": "inferencepools",
+        "InferenceObjective": "inferenceobjectives",
+        "Gateway": "gateways",            # vowel before -y -> +s
+        "GCPBackendPolicy": "gcpbackendpolicies",   # consonant before -y -> -ies
+        "HealthCheckPolicy": "healthcheckpolicies",
+        "ComputeClass": "computeclasses",  # override (and -ss -> -es)
+        "HTTPRoute": "httproutes",         # override
+        "SandboxWarmPool": "sandboxwarmpools",
+    }
+    for kind, plural in cases.items():
+        assert _crd_plural(kind) == plural, f"{kind} -> {_crd_plural(kind)} != {plural}"
 
 @pytest.fixture(autouse=True, name="init_memory_db")
 def fixture_init_memory_db():
