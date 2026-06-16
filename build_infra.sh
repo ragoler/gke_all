@@ -197,10 +197,16 @@ export ARTIFACT_REGISTRY_REPO
 while IFS=$'\t' read -r feature_name cluster_dir; do
   [ -z "$cluster_dir" ] && continue
   echo "  -> [$feature_name] applying cluster prerequisites from ${cluster_dir}"
-  for manifest in "$cluster_dir"/*.yaml "$cluster_dir"/*.yml; do
-    [ -e "$manifest" ] || continue
-    "$PY" -c "import os, sys; print(os.path.expandvars(sys.stdin.read()))" < "$manifest" | kubectl apply -f -
-  done
+  if [ -f "$cluster_dir/kustomization.yaml" ] || [ -f "$cluster_dir/kustomization.yml" ]; then
+    # Kustomize dir (e.g. remote CRD bundles via apply -k). kustomization.yaml is not a
+    # standalone resource, so this replaces — not supplements — the per-file apply below.
+    kubectl apply -k "$cluster_dir"
+  else
+    for manifest in "$cluster_dir"/*.yaml "$cluster_dir"/*.yml; do
+      [ -e "$manifest" ] || continue
+      "$PY" -c "import os, sys; print(os.path.expandvars(sys.stdin.read()))" < "$manifest" | kubectl apply -f -
+    done
+  fi
 done < <("$PY" scripts/feature_cluster_dirs.py)
 
 # Configure Workload Identity bindings for Vertex AI
