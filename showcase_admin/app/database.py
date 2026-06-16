@@ -42,17 +42,21 @@ class ShowcaseModel(Base):
 
     @validates("status")
     def validate_status(self, key, new_status):
-        valid_statuses = {"DORMANT", "DEPLOYING", "PROVISIONING", "ACTIVE", "TERMINATING", "ERROR"}
+        valid_statuses = {"DORMANT", "DEPLOYING", "PROVISIONING", "ACTIVE", "REPROVISIONING", "TERMINATING", "ERROR"}
         if new_status not in valid_statuses:
             raise ValueError(f"Invalid status: {new_status}")
-            
+
         if getattr(self, "status", None) is not None:
             old_status = self.status
             if old_status == "DORMANT" and new_status not in {"DORMANT", "DEPLOYING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
             if old_status == "TERMINATING" and new_status not in {"TERMINATING", "DORMANT", "DEPLOYING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
-            if old_status == "ACTIVE" and new_status not in {"ACTIVE", "DEPLOYING", "TERMINATING", "ERROR"}:
+            # ACTIVE -> REPROVISIONING happens when a Ready backend loses its replicas
+            # (e.g. a Spot GPU is reclaimed); the workload self-heals back to ACTIVE.
+            if old_status == "ACTIVE" and new_status not in {"ACTIVE", "REPROVISIONING", "DEPLOYING", "TERMINATING", "ERROR"}:
+                raise ValueError(f"Invalid transition from {old_status} to {new_status}")
+            if old_status == "REPROVISIONING" and new_status not in {"REPROVISIONING", "ACTIVE", "DEPLOYING", "TERMINATING", "ERROR"}:
                 raise ValueError(f"Invalid transition from {old_status} to {new_status}")
         return new_status
 

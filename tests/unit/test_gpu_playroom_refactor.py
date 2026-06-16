@@ -60,4 +60,7 @@ def test_post_chat_fallback():
 
         response = client.post("/chat", json={"prompt": "Test prompt"})
         assert response.status_code == 200
-        assert "STATUS: MODEL LOADING" in response.json()["reply"]
+        # Hardware-agnostic, honest fallback (no hardcoded GPU type / false "loading" claim).
+        reply = response.json()["reply"]
+        assert "temporarily unavailable" in reply
+        assert "NVIDIA L4" not in reply

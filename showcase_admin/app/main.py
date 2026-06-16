@@ -130,7 +130,10 @@ async def list_showcases(background_tasks: BackgroundTasks, db: Session = Depend
         if db_item and db_item.status == "ACTIVE":
             reach_out_url = db_item.reach_out_url
             
-        if db_item and db_item.status in ("DEPLOYING", "PROVISIONING"):
+        # Re-check readiness for every non-terminal state — including ACTIVE — so a backend
+        # that loses its replicas (e.g. a Spot GPU reclaim) is downgraded to REPROVISIONING,
+        # and re-provisioned/loading backends are promoted back to ACTIVE.
+        if db_item and db_item.status in ("DEPLOYING", "PROVISIONING", "REPROVISIONING", "ACTIVE"):
             background_tasks.add_task(k8s_client.check_and_update_showcase_status, name, db_item.namespace)
             
         result.append({
