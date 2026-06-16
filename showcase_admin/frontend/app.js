@@ -186,10 +186,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 const statusClass = item.status.toLowerCase();
                 
                 // Inject dynamic elapsed timer if in DEPLOYING state
-                const statusText = item.status === "DEPLOYING" 
-                    ? `DEPLOYING (<span class="elapsed-timer" data-start="${item.installed_at}">${getElapsedTimeString(item.installed_at)}</span>)` 
+                const statusText = item.status === "DEPLOYING"
+                    ? `DEPLOYING (<span class="elapsed-timer" data-start="${item.installed_at}">${getElapsedTimeString(item.installed_at)}</span>)`
                     : item.status;
-                
+
+                // Link-out (external) features serve their own UI at their own address: open
+                // those in a new tab (with an ↗ hint) so the Hub stays put. Hub-hosted playroom
+                // paths (e.g. /sandbox/) stay in the same tab — they remain inside the Hub.
+                const reachUrl = item.reach_out_url || "";
+                const isExternalDashboard = /^https?:\/\//i.test(reachUrl);
+                const dashboardLinkHtml = reachUrl
+                    ? `<a href="${reachUrl}" class="btn-secondary"${isExternalDashboard ? ' target="_blank" rel="noopener noreferrer"' : ''}>Feature dashboard${isExternalDashboard ? ' ↗' : ''}</a>`
+                    : `<button class="btn-secondary" disabled>Dashboard unavailable</button>`;
+
                 statusControlHtml = `
                     <div class="active-panel">
                         <div class="status-row">
@@ -199,7 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="action-buttons">
                             <button class="btn-secondary btn-logs" data-name="${item.name}">Logs</button>
                             ${item.status === "ACTIVE" ? `
-                                <a href="${item.reach_out_url}" class="btn-secondary">Feature dashboard</a>
+                                ${dashboardLinkHtml}
                             ` : `
                                 <button class="btn-secondary" disabled>${item.status === "TERMINATING" ? "Terminating..." : "Provisioning..."}</button>
                             `}
