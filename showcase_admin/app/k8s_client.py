@@ -122,13 +122,39 @@ async def resolve_reach_out_url(name: str, namespace: str) -> str:
     ip = await get_service_external_ip(namespace, svc)
     return f"http://{ip}/" if ip else None
 
+# CRD kinds that are cluster-scoped (applied without a namespace). Built-in cluster-scoped
+# kinds (ClusterRole/ClusterRoleBinding) are dispatched via the typed RBAC API below.
+_CLUSTER_SCOPED_CRD_KINDS = {"ComputeClass"}
+
+# Explicit plural overrides where naive "<kind>s" is wrong. Everything else is derived by
+# _crd_plural (handles the regular -y->-ies / -s,-x,-ch,-sh->-es / +s English rules), so a
+# new feature's standard CRDs apply without touching this map.
+_CRD_PLURAL_OVERRIDES = {
+    "HTTPRoute": "httproutes",
+    "ComputeClass": "computeclasses",
+}
+
+
+def _crd_plural(kind: str) -> str:
+    """Best-effort Kubernetes resource plural for a CRD Kind (matches apimachinery rules)."""
+    if kind in _CRD_PLURAL_OVERRIDES:
+        return _CRD_PLURAL_OVERRIDES[kind]
+    low = kind.lower()
+    if low.endswith(("s", "x", "z", "ch", "sh")):
+        return low + "es"
+    if low.endswith("y") and (len(low) < 2 or low[-2] not in "aeiou"):
+        return low[:-1] + "ies"  # GCPBackendPolicy -> gcpbackendpolicies, HealthCheckPolicy -> ...policies
+    return low + "s"
+
+
 async def apply_yaml_manifests(namespace: str, manifests_content: str):
     docs = yaml.safe_load_all(manifests_content)
     async with client.ApiClient() as api_client:
         core_v1 = client.CoreV1Api(api_client)
         apps_v1 = client.AppsV1Api(api_client)
+        rbac_v1 = client.RbacAuthorizationV1Api(api_client)
         custom_api = client.CustomObjectsApi(api_client)
-        
+
         for doc in docs:
             if not doc or "kind" not in doc:
                 continue
@@ -140,6 +166,8 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
             name = metadata.get("name")
             
             try:
+                # Built-in kinds via their typed APIs (CustomObjectsApi can't serve core/v1
+                # or cluster-scoped RBAC reliably). Everything else is treated as a CRD.
                 if kind == "Deployment":
                     await apps_v1.create_namespaced_deployment(namespace, doc)
                 elif kind == "Service":
@@ -148,40 +176,30 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                     await core_v1.create_namespaced_config_map(namespace, doc)
                 elif kind == "Secret":
                     await core_v1.create_namespaced_secret(namespace, doc)
+                elif kind == "ServiceAccount":
+                    await core_v1.create_namespaced_service_account(namespace, doc)
+                elif kind == "Role":
+                    await rbac_v1.create_namespaced_role(namespace, doc)
+                elif kind == "RoleBinding":
+                    await rbac_v1.create_namespaced_role_binding(namespace, doc)
+                elif kind == "ClusterRole":
+                    await rbac_v1.create_cluster_role(doc)
+                elif kind == "ClusterRoleBinding":
+                    await rbac_v1.create_cluster_role_binding(doc)
                 else:
                     if "/" in api_version:
                         group, version = api_version.split("/", 1)
                     else:
                         group, version = "", api_version
-                        
-                    plural = kind.lower() + "s"
-                    if kind == "HTTPRoute":
-                        plural = "httproutes"
-                    elif kind == "SandboxTemplate":
-                        plural = "sandboxtemplates"
-                    elif kind == "SandboxClaim":
-                        plural = "sandboxclaims"
-                    elif kind == "SandboxWarmPool":
-                        plural = "sandboxwarmpools"
-                    elif kind == "HealthCheckPolicy":
-                        plural = "healthcheckpolicies"
-                    elif kind == "ComputeClass":
-                        plural = "computeclasses"
-                        
-                    if kind == "ComputeClass":
+                    plural = _crd_plural(kind)
+                    if kind in _CLUSTER_SCOPED_CRD_KINDS:
                         await custom_api.create_cluster_custom_object(
-                            group=group,
-                            version=version,
-                            plural=plural,
-                            body=doc
+                            group=group, version=version, plural=plural, body=doc,
                         )
                     else:
                         await custom_api.create_namespaced_custom_object(
-                            group=group,
-                            version=version,
-                            namespace=namespace,
-                            plural=plural,
-                            body=doc
+                            group=group, version=version, namespace=namespace,
+                            plural=plural, body=doc,
                         )
             except client.exceptions.ApiException as e:
                 if e.status == 409 or (e.status == 400 and "already exists" in str(e).lower()):
