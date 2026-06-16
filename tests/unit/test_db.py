@@ -86,3 +86,29 @@ def test_invalid_status_transition(db_session):
     
     with pytest.raises(ValueError, match="Invalid transition from DORMANT to ACTIVE"):
         showcase.status = "ACTIVE"
+
+
+def test_reprovisioning_transition_cycle(db_session):
+    # A Spot reclaim drives ACTIVE -> REPROVISIONING; the workload self-heals back to ACTIVE.
+    showcase = ShowcaseModel(name="test-reprovision", status="DORMANT")
+    db_session.add(showcase)
+    db_session.commit()
+
+    showcase.status = "DEPLOYING"
+    showcase.status = "PROVISIONING"
+    showcase.status = "ACTIVE"
+    showcase.status = "REPROVISIONING"   # GPU reclaimed
+    showcase.status = "ACTIVE"           # re-provisioned + model reloaded
+    db_session.commit()
+    assert showcase.status == "ACTIVE"
+
+
+def test_invalid_reprovisioning_transition(db_session):
+    showcase = ShowcaseModel(name="test-reprovision-bad", status="DORMANT")
+    db_session.add(showcase)
+    db_session.commit()
+    showcase.status = "DEPLOYING"
+    showcase.status = "ACTIVE"
+    showcase.status = "REPROVISIONING"
+    with pytest.raises(ValueError, match="Invalid transition from REPROVISIONING to DORMANT"):
+        showcase.status = "DORMANT"

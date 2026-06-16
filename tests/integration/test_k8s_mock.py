@@ -274,6 +274,18 @@ async def test_real_mode_k8s_client_helpers(mock_init, init_memory_db):
             await check_and_update_showcase_status("agent-sandbox", "test-ns")
             db.refresh(showcase)
             assert showcase.status == "ACTIVE"
+
+            # 8b. Spot reclaim: a Ready backend loses its replicas -> REPROVISIONING
+            mock_dep.status.ready_replicas = 0
+            await check_and_update_showcase_status("agent-sandbox", "test-ns")
+            db.refresh(showcase)
+            assert showcase.status == "REPROVISIONING"
+
+            # 8c. Self-heal: replicas back (model reloaded) -> ACTIVE
+            mock_dep.status.ready_replicas = 1
+            await check_and_update_showcase_status("agent-sandbox", "test-ns")
+            db.refresh(showcase)
+            assert showcase.status == "ACTIVE"
         finally:
             db.close()
 
@@ -444,7 +456,8 @@ async def test_k8s_client_thorough_coverage():
              mock.patch("showcase_admin.app.k8s_client.execute_http_with_retry", new_callable=mock.AsyncMock, return_value=mock_500):
             assert "Failed to communicate with GKE sandbox" in await message_sandbox_claim("ns", "c1", "msg", "p", "vllm")
             assert "Failed to fetch quotes from GKE sandbox" in await quote_sandbox_claim("ns", "c1", "p", "vllm")
-            assert "GPU Inference server returned error" in await query_gpu_inference_server("ns", "prompt")
+            # A backend error now maps to a friendly provisioning/re-provisioning message.
+            assert "temporarily unavailable" in await query_gpu_inference_server("ns", "prompt")
 
                     
         # 5. check_and_update_showcase_status mock return & exception

@@ -56,4 +56,6 @@ async def chat_api(payload: ChatPayload):
             return {"reply": reply}
     except Exception as e:
         logger.error(f"Inference failed: {e}")
-        return {"reply": "⏳ [STATUS: MODEL LOADING] The NVIDIA L4 GPU is currently downloading model weights or initializing CUDA tensors. Please try again in a few minutes."}
+        # Hardware-agnostic (the CCC fallback may land on L4/G2 or RTX PRO 6000/G4) and honest:
+        # this catch-all fires for any backend error, not just weight loading.
+        return {"reply": "⏳ The model server is starting up or temporarily unavailable (provisioning / reload). Please try again in a moment."}

@@ -794,8 +794,13 @@ async def query_gpu_inference_server(namespace: str, prompt: str) -> str:
         if response.status_code != 200:
             raise Exception(f"GPU Inference server returned error: {response.text}")
         return response.json().get("reply", "")
-    except Exception as e:
-        return f"Failed to query GKE GPU model server: {str(e)}"
+    except Exception:
+        # The backend being unreachable almost always means the GPU pod is down or reloading
+        # (Spot reclaim / scale-up / weight load). Status polling lags the actual event by a
+        # few seconds, so surface a friendly message rather than a raw connection error.
+        return ("⏳ The GPU model server is temporarily unavailable — it is being provisioned "
+                "or re-provisioned (Spot reclaim) via the fallback compute class. "
+                "Please try again in a few minutes.")
 
 async def check_and_update_showcase_status(name: str, namespace: str):
     if config.MODE == "MOCK" or not namespace:
@@ -806,16 +811,25 @@ async def check_and_update_showcase_status(name: str, namespace: str):
         dep_name = FEATURE_DEPLOYMENT_MAP.get(name, f"{name}-deployment")
         try:
             dep = await apps_v1.read_namespaced_deployment(dep_name, namespace)
-            if dep and hasattr(dep, "status") and getattr(dep.status, "ready_replicas", None) is not None:
+            if dep and hasattr(dep, "status"):
+                # ready_replicas is None (not 0) when all replicas are down — e.g. a Spot GPU
+                # was reclaimed — so coerce None -> 0, otherwise the downgrade is never seen.
                 ready = getattr(dep.status, "ready_replicas", 0) or 0
                 desired = getattr(dep.status, "replicas", None) or getattr(dep.spec, "replicas", 1) or 1
                 db = database.SessionLocal()
                 try:
                     showcase = db.query(ShowcaseModel).filter_by(name=name).first()
-                    if showcase and showcase.status in ("DEPLOYING", "PROVISIONING") and showcase.namespace == namespace:
-                        if ready == desired and ready > 0:
+                    if showcase and showcase.namespace == namespace:
+                        is_ready = ready == desired and ready > 0
+                        if is_ready and showcase.status in ("DEPLOYING", "PROVISIONING", "REPROVISIONING"):
+                            # Model server is (back) up and servable.
                             showcase.status = "ACTIVE"
                             showcase.reach_out_url = await resolve_reach_out_url(name, namespace)
+                            db.commit()
+                        elif not is_ready and showcase.status == "ACTIVE":
+                            # A Ready backend lost its replicas (Spot reclaim / pod eviction);
+                            # the workload self-heals via the CCC, so report re-provisioning.
+                            showcase.status = "REPROVISIONING"
                             db.commit()
                 finally:
                     db.close()

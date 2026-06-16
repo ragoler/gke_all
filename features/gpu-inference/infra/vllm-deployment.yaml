@@ -44,6 +44,23 @@ spec:
         - "--port=8000"
         ports:
         - containerPort: 8000
+        # vLLM serves /health with 200 only once the engine has finished loading the model.
+        # Gating pod readiness on it means the pod (and the Deployment's ready_replicas) is
+        # only Ready when inference actually works — so the Hub status correctly shows
+        # PROVISIONING during the ~14GB GCS weight download (and REPROVISIONING after a Spot
+        # reclaim) instead of flipping ACTIVE the instant the process starts.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 60   # ~10 min budget for GCS download + CUDA init
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 3
         resources:
           requests:
             cpu: "2"
