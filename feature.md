@@ -290,6 +290,15 @@ them — don't rely on a demo's standalone `setup_infra.sh` having run.
 - `frontend_dir` is the **Hub playroom** UI. If your feature's deployed workload serves
   its *own* UI (like gpu-inference's app container), keep that in a different directory
   so the two don't collide.
+- **Standalone UI (external features): the Hub serves the playroom, so on its own the
+  feature has no UI unless it serves one itself.** An external feature that must run
+  standalone should have its own container serve `frontend_dir` too — e.g. the app
+  mounts the static dir at `/` and at `/static/features/<name>/` (mirroring the Hub's
+  layout so `index.html`'s asset paths resolve in both). Ship the *same* frontend code:
+  have it probe the Hub API (`GET /api/features/<name>/config`) and, when that 404s
+  (no Hub), fall back to `LIVE` against its own origin / the Gateway IP. That one UI then
+  works both hub-hosted and standalone. (A **link-out** feature avoids this entirely —
+  its own app already serves the UI; that's `inference-gateway`.)
 - Calls to **Hub APIs** must attach the admin JWT:
   `Authorization: Bearer ${localStorage.getItem("admin_jwt")}`.
 - Calls to **your feature's data plane** go to your feature's own router under
@@ -495,6 +504,10 @@ changes.
       or a `kustomization.yaml` for CRD bundles).
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
+- [ ] **Standalone UI:** an external hub-hosted-playroom feature also serves its own
+      `frontend_dir` (the Hub serves the UI only in Hub mode) — same code, with a
+      Hub-config probe that falls back to its own origin. (See §6.) Link-out features
+      already serve their own UI.
 - [ ] **Standalone (external features):** committed `.env.example`, gitignored `.env`;
       `setup_infra.sh` creates the cluster (`--gateway-api`, NAP if the ComputeClass
       auto-creates pools) + applies `cluster/`; `deploy_app.sh` builds/pushes + applies
