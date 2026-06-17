@@ -54,8 +54,19 @@ are fine and ignored by the Hub):
 │   ├── style.css
 │   └── app.js
 ├── hub_router.py           # OPTIONAL — this feature's own data-plane API router (§6a)
-└── setup_infra.sh          # OPTIONAL — standalone-only provisioning (Hub ignores)
+│
+│   # --- Standalone operation (Hub IGNORES all of these) — see §7a ---------
+├── .env.example            # standalone config template (cp .env.example .env)
+├── .env                    # local config (gitignored), sourced by the scripts
+├── setup_infra.sh          # create the GKE CLUSTER + cluster-scoped prereqs
+├── deploy_app.sh           # build/push image + deploy per-namespace infra
+└── verify_setup.sh         # post-deploy readiness + smoke test
 ```
+
+> **External features must run standalone** (§ table above), and that is what the
+> `.env` + script trio is for. A **local** feature only ever runs inside the Hub,
+> so it can skip them. The Hub never reads `.env` or runs these scripts — it has
+> its own equivalents (see §7a). They exist so the repo also stands alone.
 
 The Hub never assumes fixed paths beyond `feature.yaml`; the descriptor's `paths:`
 block tells it where your `infra/`, `frontend/`, and build contexts actually live, so
@@ -318,6 +329,96 @@ must not break mock runs:
 
 ---
 
+## 7a. Standalone operation (the `.env` + script trio)
+
+A Hub feature assumes a **live cluster** and owns only its namespace. A standalone
+repo has neither — so it must also know how to **create the cluster** and wire up
+its own config. That is the one part of the contract the Hub can't exercise for
+you, and historically the most under-specified. An external feature ships three
+scripts plus an env file (the Hub ignores all four):
+
+| File | Responsibility | Hub equivalent |
+|---|---|---|
+| `.env` / `.env.example` | all standalone config (project, cluster, region, knobs) | the Hub injects its standard vars (§3) + `template_defaults` |
+| `setup_infra.sh` | create the GKE **cluster** + apply **cluster-scoped** prereqs (`cluster/`) | `build_infra.sh` (cluster bootstrap) |
+| `deploy_app.sh` | build/push the image + apply **per-namespace** infra (`infra/`) | `scripts/build_and_push.sh` + per-deploy apply |
+| `verify_setup.sh` | wait for readiness, discover the Gateway IP, smoke-test | the Hub's readiness poll + mock-mode integration test (§9) |
+
+Note the split mirrors the Hub's own: **cluster-once vs per-deploy**. Keep
+`setup_infra.sh` ↔ `cluster/` and `deploy_app.sh` ↔ `infra/` aligned with the same
+YAML the Hub applies, so the two paths never drift. `inference-gateway` is the
+reference implementation.
+
+### `.env` — and the standalone↔Hub variable mapping
+
+The standalone scripts source `.env`; the Hub supplies its own variables instead.
+Most names line up, but a few differ — author manifests against the **Hub** names
+(§3) and define everything else in `template_defaults`, then mirror those names in
+`.env` for standalone:
+
+| Standalone `.env` | Hub-provided (§3) | Notes |
+|---|---|---|
+| `PROJECT_ID` | `PROJECT_NAME` | **same value, different name** — the most common gotcha |
+| `REGION` | `REGION` | same |
+| `ARTIFACT_REGISTRY_REPO` | `ARTIFACT_REGISTRY_REPO` | same |
+| `NAMESPACE` (default `default`) | `NAMESPACE` (`gke-showcase-<name>`) | default it to `default` so `${NAMESPACE}` still renders standalone |
+| `ZONE`, `CLUSTER_NAME` | — | standalone-only: the Hub already has a cluster |
+| `GATEWAY_NAME` | — | from `feature.yaml` `gateway.name`; mirror in `.env` |
+| `REGISTRY`, `IMAGE_TAG` | composed in `template_defaults` | e.g. `REGISTRY: "${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}"` |
+
+Ship a committed `.env.example` (documented, no secrets) and gitignore the real
+`.env` (`.env`, `.env_*`).
+
+### `setup_infra.sh` — creating the cluster
+
+The thing a Hub feature never does. At minimum it should:
+
+- **Source `.env`** and fail clearly if it's missing.
+- **Create the GKE cluster** idempotently (`gcloud container clusters describe …
+  || create …`), with the capabilities the demo needs:
+  - `--gateway-api=standard` — required for the `Gateway`/`HTTPRoute` you ship.
+  - `--enable-autoprovisioning` (+ `--min/max-cpu`, `--min/max-memory`, and
+    `--max-accelerator` for GPU) — **required if your `ComputeClass` uses node
+    auto-creation**, so GKE can spin up (Spot/GPU) node pools on demand.
+  - a **proxy-only subnet** in the region if you use a regional gateway
+    (`gke-l7-rilb`/regional-external) — create it only if absent, and **never
+    delete it** (other clusters share it).
+- `gcloud container clusters get-credentials …` so `kubectl` targets *this*
+  cluster (never act on the ambient context).
+- **Apply `cluster/`** — the same cluster-scoped prereqs the Hub installs at
+  bootstrap (a kustomize CRD bundle via `kubectl apply -k`, plain manifests
+  otherwise).
+- Offer **teardown modes** for clean rebuilds, e.g. `--delete` (in-cluster
+  resources, keep the cluster) and `--delete-cluster` (also delete the cluster).
+
+### `deploy_app.sh` — image + per-namespace infra
+
+- Ensure the **Artifact Registry repo** exists (`gcloud artifacts repositories
+  create … || true`) and `gcloud auth configure-docker <region>-docker.pkg.dev`.
+- `docker build --platform linux/amd64` (GKE nodes are amd64) and push.
+- Use a **per-cluster image tag** (default `IMAGE_TAG=$CLUSTER_NAME`) so multiple
+  clusters never clobber each other's `:latest`.
+- Create the namespace, then **apply `infra/`** with portable substitution, and
+  wait for the `deployment_name` rollout + the Gateway IP.
+
+### Portable manifest substitution (no `envsubst`)
+
+`envsubst` isn't installed on stock macOS. Use a tiny `python3` helper so the
+scripts run anywhere, and so Kubernetes downward-API refs survive:
+
+```bash
+# Expands ${VAR}; leaves $(VAR) alone (e.g. downward-API $(POD_IP)).
+render() { python3 -c "import os,sys;sys.stdout.write(os.path.expandvars(open(sys.argv[1]).read()))" "$1"; }
+export NAMESPACE IMAGE …            # the vars your manifests reference
+render infra/deployment.yaml | kubectl apply -n "$NAMESPACE" -f -
+```
+
+Author manifests with `${VAR}` for build-time substitution and `$(VAR)` only for
+Kubernetes' own runtime refs — `os.path.expandvars` rewrites the former and leaves
+the latter intact.
+
+---
+
 ## 8. Adding a feature to the Hub
 
 Regardless of flavor, once the directory exists under `features/<name>/` with a valid
@@ -394,6 +495,10 @@ changes.
       or a `kustomization.yaml` for CRD bundles).
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
-- [ ] Standalone deploy still works (your own `setup_infra.sh`/`deploy_app.sh`).
+- [ ] **Standalone (external features):** committed `.env.example`, gitignored `.env`;
+      `setup_infra.sh` creates the cluster (`--gateway-api`, NAP if the ComputeClass
+      auto-creates pools) + applies `cluster/`; `deploy_app.sh` builds/pushes + applies
+      `infra/`; `verify_setup.sh` validates. Variable names map to §3 (e.g. `PROJECT_ID`
+      ↔ `PROJECT_NAME`); manifests use portable substitution (no `envsubst`). (See §7a.)
 - [ ] Tests pass: `.venv/bin/pytest tests/`.
 ```
