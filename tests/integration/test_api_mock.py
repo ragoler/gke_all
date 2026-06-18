@@ -44,7 +44,7 @@ def test_api_authorized_get_showcases(client):
         assert response.status_code == 200
         data = response.json()
         names = {s["name"] for s in data}
-        assert {"agent-sandbox", "gpu-inference", "inference-gateway"} <= names
+        assert {"agent-sandbox", "gpu-inference", "inference-gateway", "ray"} <= names
         assert data[0]["name"] == "agent-sandbox"
         assert data[0]["status"] == "DORMANT"
 
@@ -113,6 +113,9 @@ def test_api_html_playrooms(client):
         
         resp_inf = client.get("/inference/")
         assert resp_inf.status_code == 200
+
+        resp_ray = client.get("/ray/")
+        assert resp_ray.status_code == 200
     finally:
         app.dependency_overrides.clear()
 
@@ -166,5 +169,41 @@ def test_api_inference_chat(client):
         resp = client.post("/api/features/gpu-inference/chat", json={"prompt": "What is AI?"})
         assert resp.status_code == 200
         assert "MOCK INFERENCE" in resp.json()["reply"]
+    finally:
+        app.dependency_overrides.clear()
+
+def test_api_ray_render(client):
+    from showcase_admin.app.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: True
+    try:
+        # 1. Config reports MOCK (no cluster).
+        cfg = client.get("/api/features/ray/config")
+        assert cfg.status_code == 200
+        assert cfg.json()["mode"] == "MOCK"
+
+        # 2. Presets are served.
+        presets = client.get("/api/features/ray/presets")
+        assert presets.status_code == 200
+        assert "seahorse" in presets.json()
+
+        # 3. Plan a small render job.
+        render = client.post("/api/features/ray/render", json={"resolution": 128})
+        assert render.status_code == 200
+        job_id = render.json()["job_id"]
+        assert job_id
+
+        # 4. Stream the job: a 1-tile render yields meta + tile + done.
+        stream = client.get(f"/api/features/ray/render/{job_id}/stream")
+        assert stream.status_code == 200
+        body = stream.text
+        assert '"type": "meta"' in body
+        assert '"type": "tile"' in body
+        assert '"type": "done"' in body
+
+        # 5. Workers reflect the synthetic autoscaling (head + at least one worker).
+        workers = client.get("/api/features/ray/workers")
+        assert workers.status_code == 200
+        pods = workers.json()["pods"]
+        assert any(p["node_type"] == "worker" for p in pods)
     finally:
         app.dependency_overrides.clear()

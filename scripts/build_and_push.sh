@@ -25,6 +25,12 @@ CLUSTER_NAME=${CLUSTER_NAME:-"gke-showcase-cluster"}
 REPO_NAME=${ARTIFACT_REGISTRY_REPO:-"gke-showcase-repo"}
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
+# GKE nodes are amd64, so always build amd64 images regardless of the build host's
+# architecture (a bare `docker build` on Apple Silicon/arm64 would otherwise produce
+# arm64 images that crash on the cluster with exec-format errors). Overridable for the
+# rare cross-arch case. On an amd64 build host this is a no-op.
+BUILD_PLATFORM="${BUILD_PLATFORM:-linux/amd64}"
+
 # Python interpreter for reading feature descriptors (prefer the repo venv, which has PyYAML)
 PY="python3"
 [ -x ".venv/bin/python" ] && PY=".venv/bin/python"
@@ -77,7 +83,7 @@ gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 # The Admin Hub container is the platform itself (not a feature), so it stays explicit.
 build_admin() {
   echo ">>> Building Showcase Admin Dashboard..."
-  docker build -t "${REGISTRY}/showcase-admin:latest" -f showcase_admin/Dockerfile .
+  docker build --platform "$BUILD_PLATFORM" -t "${REGISTRY}/showcase-admin:latest" -f showcase_admin/Dockerfile .
   echo ">>> Pushing Showcase Admin Dashboard..."
   docker push "${REGISTRY}/showcase-admin:latest"
 }
@@ -94,18 +100,18 @@ build_feature_image() {
     echo ">>> [$fname] Cloning ${git_url} to build ${image}..."
     git clone --depth 1 "$git_url" "$tmp"
     if [ "$dockerfile" != "-" ]; then
-      docker build -t "$tag" -f "${tmp}/${dockerfile}" "${tmp}/${context}"
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" -f "${tmp}/${dockerfile}" "${tmp}/${context}"
     else
-      docker build -t "$tag" "${tmp}/${context}"
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" "${tmp}/${context}"
     fi
     rm -rf "$tmp"
   else
     local feature_dir="features/${fname}"
     echo ">>> [$fname] Building ${image}..."
     if [ "$dockerfile" != "-" ]; then
-      docker build -t "$tag" -f "${feature_dir}/${dockerfile}" "${feature_dir}/${context}"
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" -f "${feature_dir}/${dockerfile}" "${feature_dir}/${context}"
     else
-      docker build -t "$tag" "${feature_dir}/${context}"
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" "${feature_dir}/${context}"
     fi
   fi
   echo ">>> [$fname] Pushing ${image}..."

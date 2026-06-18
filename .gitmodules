@@ -1,3 +1,6 @@
 [submodule "features/inference-gateway"]
 	path = features/inference-gateway
 	url = https://github.com/ragoler/inference_gateway.git
+[submodule "features/ray"]
+	path = features/ray
+	url = https://github.com/ragoler/ray.git

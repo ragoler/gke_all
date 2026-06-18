@@ -475,6 +475,51 @@ changes.
 
 ---
 
+## 8a. Building images on a separate machine (build ↔ deploy split)
+
+The Hub build pipeline is **decoupled from the cluster**. `scripts/build_and_push.sh`
+needs only Docker, an authenticated `gcloud`, and the repo, and it only has to reach
+**Artifact Registry** — never the GKE cluster. So you can build/push from a dedicated
+build host (e.g. a beefy amd64 Linux box) and let a different, cluster-connected machine
+(or the Hub UI) do the deploy. This mirrors §7a's standalone split, but for the Hub's own
+pipeline rather than a feature's scripts.
+
+On the build host:
+
+1. **Prereqs:** Docker, `git`, and `gcloud auth login` +
+   `gcloud auth configure-docker ${REGION}-docker.pkg.dev` (the script also runs the
+   latter). `python3` with PyYAML is used to read descriptors (the repo `.venv` is
+   preferred, system `python3` is the fallback).
+2. **Get the code with submodules.** Commit & push the Hub submodule pointer **first**
+   (an external feature's `.gitmodules` entry + pinned commit), then clone the Hub repo
+   on the build host. `build_and_push.sh` auto-runs `git submodule update --init
+   --recursive`, so `features/*` populate at their pinned commits without a manual step.
+3. **Set the AR coordinates** the image tag is composed from — `PROJECT_NAME`, `REGION`,
+   `ARTIFACT_REGISTRY_REPO` (via `.env` or env). No cluster variables are needed.
+4. **Build + push, skip the rollout:**
+   ```bash
+   ./scripts/build_and_push.sh --feature <name> --no-rollout   # or omit --feature for all
+   ```
+   A build-only host with no reachable cluster skips the rollout automatically, but pass
+   `--no-rollout` to be explicit and to avoid the script's
+   `gcloud container clusters get-credentials` probe.
+
+**Architecture — always build amd64.** GKE nodes are amd64, so the Hub's `docker build`
+commands pin `--platform linux/amd64` (overridable via `BUILD_PLATFORM`). A bare
+`docker build` on an arm64 host (Apple Silicon, Graviton) would otherwise produce arm64
+images that crash on the cluster with exec-format errors — build on amd64, or cross-build
+with buildx/qemu. (This is the same rule §7a states for the standalone `deploy_app.sh`.)
+
+**Re-deploying after a rebuild.** First deploy pulls the pushed `:latest` automatically.
+But `:latest` is **not** re-pulled on its own, so after rebuilding an already-running
+feature you must roll it from a cluster-connected machine: the script does
+`kubectl rollout restart deployment/<deployment_name> -n gke-showcase-<name>` when a
+cluster is reachable. Note this only recycles the feature's **Deployment** — workloads
+managed by a CRD (e.g. a KubeRay `RayCluster`'s head/worker pods) are not Deployments and
+need a redeploy (Hub teardown + redeploy, or recreate the CR) to pick up a new image.
+
+---
+
 ## 9. Testing
 
 - Author unit tests for manifest expansion and any app logic.
