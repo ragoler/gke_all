@@ -207,7 +207,10 @@ while IFS=$'\t' read -r feature_name cluster_dir; do
   if [ -f "$cluster_dir/kustomization.yaml" ] || [ -f "$cluster_dir/kustomization.yml" ]; then
     # Kustomize dir (e.g. remote CRD bundles via apply -k). kustomization.yaml is not a
     # standalone resource, so this replaces — not supplements — the per-file apply below.
-    kubectl apply -k "$cluster_dir"
+    # Server-side apply: large CRD bundles (e.g. KubeRay's RayCluster CRD) exceed the
+    # 256KB client-side last-applied annotation limit. --force-conflicts lets a re-bootstrap
+    # take ownership of fields a prior client-side apply set.
+    kubectl apply --server-side --force-conflicts -k "$cluster_dir"
   else
     for manifest in "$cluster_dir"/*.yaml "$cluster_dir"/*.yml; do
       [ -e "$manifest" ] || continue

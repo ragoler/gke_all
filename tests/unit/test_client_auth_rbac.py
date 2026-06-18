@@ -28,3 +28,9 @@ def test_infra_main_app_rbac():
     assert "inference.networking.x-k8s.io" in content
     assert "inferencepools" in content
     assert "inferenceobjectives" in content
+    # ray feature: the admin SA must be able to manage its CRDs (PodMonitoring metrics +
+    # RayCluster), else the deploy 403s and aborts mid-apply (see feature.md §5).
+    assert "monitoring.googleapis.com" in content
+    assert "podmonitorings" in content
+    assert "ray.io" in content
+    assert "rayclusters" in content

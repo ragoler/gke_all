@@ -260,12 +260,28 @@ Put them in `cluster_dir`. The Hub applies them at **cluster bootstrap**
 `paths.cluster_dir`. If your demo's standalone `setup_infra.sh` provisions these, mirror
 the same YAML into `cluster/` so the Hub path stays IaC and reproducible.
 
-`cluster_dir` supports two forms, applied at bootstrap:
-- **Plain manifests** — every `*.yaml` is variable-expanded and `kubectl apply`-ed.
-- **A kustomize dir** — if `cluster_dir` contains a `kustomization.yaml`, the Hub runs
-  `kubectl apply -k` on it. This is how to install an upstream **CRD bundle**: e.g.
-  `inference-gateway`'s `cluster/kustomization.yaml` pulls the gateway-api-inference-extension
-  CRDs (`resources: [https://github.com/.../config/crd?ref=vX]`), pinned to a version.
+`cluster_dir` supports two forms, applied at bootstrap. **It looks only at the top level
+of `cluster_dir`** — a `kustomization.yaml` in a *subdirectory* is NOT discovered:
+- **Plain manifests** — every top-level `*.yaml` is variable-expanded and `kubectl apply`-ed.
+- **A kustomize dir** — if `cluster_dir` *itself* contains a top-level `kustomization.yaml`,
+  the Hub runs `kubectl apply --server-side -k` on it (server-side because large upstream
+  **CRD bundles** exceed the 256KB client-side annotation limit). This is how to install a
+  CRD bundle: e.g. `inference-gateway`'s `cluster/kustomization.yaml` pulls the
+  gateway-api-inference-extension CRDs (`resources: [https://github.com/.../config/crd?ref=vX]`),
+  and `ray`'s `cluster/kustomization.yaml` composes the KubeRay operator bundle, its
+  `ray-system` Namespace, and the Spot ComputeClass into one apply. If your bundle needs a
+  dedicated namespace (KubeRay's operator lives in `ray-system`), **include the `Namespace`
+  as a kustomize resource** — `apply -k` does not create it for you, and `kubectl` orders
+  Namespaces first so the namespaced resources land correctly.
+
+> **New CRD kinds need an RBAC grant — the one sanctioned Hub-core edit.** The Hub's admin
+> ServiceAccount applies your manifests through a curated ClusterRole
+> (`showcase-admin-role` in `infra/main-app.yaml`). If your feature introduces a Kubernetes
+> resource kind no existing feature uses (a CRD like `RayCluster`, or `PodMonitoring`), the
+> SA cannot create it and **the deploy 403s and aborts mid-apply** — leaving a half-built
+> namespace (this is exactly what broke `ray`'s first deploy). Add an `apiGroups`/`resources`
+> rule for the new kind to that ClusterRole. This is in-cluster **Kubernetes RBAC, not GCP
+> IAM** — no `gcloud ... add-iam-policy-binding` is involved.
 
 Note: the Hub also routes a `ComputeClass` found in a per-namespace `infra_dir` to the
 cluster-scoped API automatically, so a demo that keeps its ComputeClass alongside its
@@ -545,8 +561,12 @@ need a redeploy (Hub teardown + redeploy, or recreate the CR) to pick up a new i
       reads `POD_NAMESPACE` (downward API). Standalone defaults `NAMESPACE=default`.
 - [ ] Every `${VAR}` in manifests is Hub-standard or declared in `template_defaults`
       (`grep -rE '\$\{[A-Z_]+\}'` and check each).
-- [ ] Cluster-scoped resources (if any) live in `cluster/` and are declared (plain YAML,
-      or a `kustomization.yaml` for CRD bundles).
+- [ ] Cluster-scoped resources (if any) live in `cluster/` and are declared (plain
+      top-level YAML, or a **top-level** `kustomization.yaml` for CRD bundles — subdir
+      kustomizations are not discovered; include any needed `Namespace` as a resource).
+- [ ] **New CRD kinds:** if a manifest uses a resource kind no existing feature uses, add
+      its `apiGroups`/`resources` to the admin ClusterRole in `infra/main-app.yaml` (else
+      the deploy 403s and aborts). Kubernetes RBAC only — not GCP IAM. (See §5.)
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
 - [ ] **Standalone UI:** an external hub-hosted-playroom feature also serves its own

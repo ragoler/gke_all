@@ -49,6 +49,14 @@ rules:
 - apiGroups: ["node.gke.io", "cloud.google.com"]
   resources: ["computeclasses", "computeclasss"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Google Managed Prometheus scrape configs (e.g. ray's PodMonitoring for live metrics).
+- apiGroups: ["monitoring.googleapis.com"]
+  resources: ["podmonitorings", "clusterpodmonitorings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# KubeRay custom resources (the ray feature's RayCluster; rayjobs/rayservices for parity).
+- apiGroups: ["ray.io"]
+  resources: ["rayclusters", "rayjobs", "rayservices"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
