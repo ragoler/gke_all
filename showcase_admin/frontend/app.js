@@ -190,13 +190,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     ? `DEPLOYING (<span class="elapsed-timer" data-start="${item.installed_at}">${getElapsedTimeString(item.installed_at)}</span>)`
                     : item.status;
 
-                // Link-out (external) features serve their own UI at their own address: open
-                // those in a new tab (with an ↗ hint) so the Hub stays put. Hub-hosted playroom
-                // paths (e.g. /sandbox/) stay in the same tab — they remain inside the Hub.
+                // The feature dashboard always opens in a new tab (with an ↗ hint) so the Hub
+                // stays put — both link-out features (their own external UI) and hub-hosted
+                // playroom paths (e.g. /sandbox/, /ray/).
                 const reachUrl = item.reach_out_url || "";
-                const isExternalDashboard = /^https?:\/\//i.test(reachUrl);
                 const dashboardLinkHtml = reachUrl
-                    ? `<a href="${reachUrl}" class="btn-secondary"${isExternalDashboard ? ' target="_blank" rel="noopener noreferrer"' : ''}>Feature dashboard${isExternalDashboard ? ' ↗' : ''}</a>`
+                    ? `<a href="${reachUrl}" class="btn-secondary" target="_blank" rel="noopener noreferrer">Feature dashboard ↗</a>`
                     : `<button class="btn-secondary" disabled>Dashboard unavailable</button>`;
 
                 statusControlHtml = `
