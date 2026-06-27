@@ -57,6 +57,21 @@ rules:
 - apiGroups: ["ray.io"]
   resources: ["rayclusters", "rayjobs", "rayservices"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Kueue feature: the Hub applies the namespaced LocalQueue at deploy time, and creates the
+# controller's Role granting workloads/jobs. (ResourceFlavor/ClusterQueue/WorkloadPriorityClass
+# are cluster-scoped and installed at bootstrap by build_infra.sh, not by the admin SA.)
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["clusterqueues", "localqueues", "resourceflavors", "workloads", "workloadpriorityclasses", "admissionchecks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# JobSet feature: new CRD kind the Hub must be able to manage on the feature's behalf.
+- apiGroups: ["jobset.x-k8s.io"]
+  resources: ["jobsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Batch Jobs are created by the kueue/jobset feature controllers; granted here so the Hub can
+# also apply/clean up Job manifests and grant the controllers' namespaced Roles.
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

@@ -4,3 +4,9 @@
 [submodule "features/ray"]
 	path = features/ray
 	url = https://github.com/ragoler/ray.git
+[submodule "features/kueue"]
+	path = features/kueue
+	url = https://github.com/ragoler/kueue.git
+[submodule "features/jobset"]
+	path = features/jobset
+	url = https://github.com/ragoler/jobset.git
