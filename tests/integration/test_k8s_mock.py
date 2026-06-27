@@ -452,7 +452,13 @@ async def test_k8s_client_thorough_coverage():
                 
         # 4. REST APIs with SANDBOX_ROUTER_URL and 500 errors
         mock_500 = mock.MagicMock(status_code=500, text="Internal Error")
+        # message/quote re-attach from the SandboxClaim CRD when the in-memory session is
+        # gone (e.g. after a Hub restart). With no matching claim the rebind yields None and
+        # we return the friendly error.
+        mock_custom_nf = mock.MagicMock()
+        mock_custom_nf.list_namespaced_custom_object = mock.AsyncMock(return_value={"items": []})
         with mock.patch("showcase_admin.app.config.SANDBOX_ROUTER_URL", "http://router-svc/"), \
+             mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom_nf), \
              mock.patch("showcase_admin.app.k8s_client.execute_http_with_retry", new_callable=mock.AsyncMock, return_value=mock_500):
             assert "Failed to communicate with GKE sandbox" in await message_sandbox_claim("ns", "c1", "msg", "p", "vllm")
             assert "Failed to fetch quotes from GKE sandbox" in await quote_sandbox_claim("ns", "c1", "p", "vllm")
@@ -490,3 +496,40 @@ async def test_k8s_client_thorough_coverage():
         with mock.patch("kubernetes_asyncio.client.CoreV1Api", return_value=mock_core):
             stats = await get_cluster_stats()
             assert stats["error"] == "cluster error"
+
+
+@pytest.mark.anyio
+async def test_sandbox_rebind_after_hub_restart():
+    """A still-running claim is re-attached from its SandboxClaim CRD when the in-memory
+    session was lost (admin pod restart) — instead of failing with 'session not found'."""
+    import showcase_admin.app.k8s_client as sak
+    sak._sandbox_sessions.clear()
+
+    fake_resp = mock.MagicMock(status_code=200)
+    fake_resp.json.return_value = {"reply": "[bound-id] hi"}
+    fake_sandbox = mock.MagicMock()
+    fake_sandbox.connector.send_request.return_value = fake_resp
+    fake_client = mock.MagicMock()
+    fake_client.get_sandbox.return_value = fake_sandbox
+
+    # claim_id carried by the Hub is the bound sandbox id; the CRD maps it to the claim name.
+    mock_custom = mock.MagicMock()
+    mock_custom.list_namespaced_custom_object = mock.AsyncMock(return_value={
+        "items": [{"metadata": {"name": "sandbox-claim-xyz"},
+                   "status": {"sandbox": {"Name": "bound-id"}}}]
+    })
+
+    with mock.patch("showcase_admin.app.config.MODE", "REAL"), \
+         mock.patch("showcase_admin.app.k8s_client.init_k8s_connection"), \
+         mock.patch("kubernetes_asyncio.client.ApiClient"), \
+         mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom), \
+         mock.patch("showcase_admin.app.k8s_client._build_sandbox_client", return_value=fake_client), \
+         mock.patch("showcase_admin.app.k8s_client._resolve_vllm_endpoint",
+                    new_callable=mock.AsyncMock, return_value="http://vllm/v1"):
+        reply = await sak.message_sandbox_claim("ns", "bound-id", "hi", "vertex", "vllm-ns")
+
+    assert reply == "[bound-id] hi"
+    # rebound via the resolved CLAIM NAME (not the bound id) and cached for reuse.
+    fake_client.get_sandbox.assert_called_once_with("sandbox-claim-xyz", "ns")
+    assert "bound-id" in sak._sandbox_sessions
+    sak._sandbox_sessions.clear()

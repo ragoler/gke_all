@@ -633,6 +633,61 @@ def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dic
     return sandbox.connector.send_request(method, endpoint, json=json_payload, headers=headers or {})
 
 
+async def _find_claim_name(namespace: str, claim_id: str) -> str:
+    """Map a bound sandbox_id (or a claim name) back to its SandboxClaim CRD name.
+
+    claim_id is what the Hub/UI carries (the bound sandbox_id, e.g.
+    ``agent-sandbox-warmpool-cw7d7``), but the SDK re-attach API keys off the claim
+    name (``sandbox-claim-...``). Returns None if no matching claim exists.
+    """
+    await init_k8s_connection()
+    async with client.ApiClient() as api_client:
+        custom_api = client.CustomObjectsApi(api_client)
+        resp = await custom_api.list_namespaced_custom_object(
+            group=SANDBOX_GROUP,
+            version=SANDBOX_VERSION,
+            namespace=namespace,
+            plural=SANDBOX_CLAIM_PLURAL,
+        )
+    return next(
+        (
+            item.get("metadata", {}).get("name")
+            for item in resp.get("items", [])
+            if _claim_sandbox_id(item) == claim_id
+            or item.get("metadata", {}).get("name") == claim_id
+        ),
+        None,
+    )
+
+
+def _rebind_sandbox_session_sync(namespace: str, claim_name: str):
+    """Blocking: re-attach a Sandbox handle to an existing claim's running pod.
+
+    The SDK's get_sandbox re-attaches to live infrastructure, so a claim created by a
+    previous Hub process is reachable again without re-claiming.
+    """
+    return _build_sandbox_client(namespace).get_sandbox(claim_name, namespace)
+
+
+async def _get_or_rebind_sandbox(namespace: str, claim_id: str):
+    """Return the live Sandbox handle for claim_id.
+
+    ``_sandbox_sessions`` is in-process memory, so it is empty for any claim this Hub
+    process did not create (e.g. after an admin pod restart/redeploy/eviction). Rather
+    than fail those still-running sandboxes, re-attach from the durable SandboxClaim CRD
+    and cache the handle. Returns None only when the claim genuinely no longer exists.
+    """
+    sandbox = _sandbox_sessions.get(claim_id)
+    if sandbox is not None:
+        return sandbox
+    claim_name = await _find_claim_name(namespace, claim_id)
+    if claim_name is None:
+        return None
+    sandbox = await asyncio.to_thread(_rebind_sandbox_session_sync, namespace, claim_name)
+    _sandbox_sessions[claim_id] = sandbox
+    return sandbox
+
+
 async def list_sandbox_claims(namespace: str) -> list:
     if config.MODE == "MOCK":
         return [{"id": cid, "status": "RUNNING"} for cid in mock_claims.keys()]
@@ -770,9 +825,9 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
     if config.MODE == "MOCK":
         return f"[{claim_id}] Mock reply using model routing '{provider}': Recieved your prompt '{message}'."
 
-    sandbox = _sandbox_sessions.get(claim_id)
+    sandbox = await _get_or_rebind_sandbox(namespace, claim_id)
     if not sandbox:
-        return "Failed to communicate with GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
+        return "Failed to communicate with GKE sandbox: claim not found (it may have been released). Please allocate a new sandbox."
     try:
         vllm_endpoint = await _resolve_vllm_endpoint(vllm_namespace)
         resp = await asyncio.to_thread(
@@ -790,9 +845,9 @@ async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm
     if config.MODE == "MOCK":
         return f"\"The best way to predict the future is to invent it.\" - Routed via GKE Sandbox [{claim_id}] using provider '{provider}'."
 
-    sandbox = _sandbox_sessions.get(claim_id)
+    sandbox = await _get_or_rebind_sandbox(namespace, claim_id)
     if not sandbox:
-        return "Failed to fetch quotes from GKE sandbox: session not found (the Hub may have restarted). Please allocate a new sandbox."
+        return "Failed to fetch quotes from GKE sandbox: claim not found (it may have been released). Please allocate a new sandbox."
     try:
         vllm_endpoint = await _resolve_vllm_endpoint(vllm_namespace)
         resp = await asyncio.to_thread(
