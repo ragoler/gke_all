@@ -1,12 +1,16 @@
 [submodule "features/inference-gateway"]
 	path = features/inference-gateway
 	url = https://github.com/ragoler/inference_gateway.git
+	branch = main
 [submodule "features/ray"]
 	path = features/ray
 	url = https://github.com/ragoler/ray.git
+	branch = main
 [submodule "features/kueue"]
 	path = features/kueue
 	url = https://github.com/ragoler/kueue.git
+	branch = main
 [submodule "features/jobset"]
 	path = features/jobset
 	url = https://github.com/ragoler/jobset.git
+	branch = main

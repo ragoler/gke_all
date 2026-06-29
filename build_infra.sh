@@ -10,12 +10,14 @@ if [ -f .env ]; then
   set +a
 fi
 
-# Ensure feature submodules are checked out so features/* (e.g. inference-gateway) are
-# present — no need to remember `git submodule update --init --recursive`. Idempotent and
-# a no-op for an already-initialized checkout; non-fatal if it can't reach the network.
+# Sync feature submodules to the LATEST commit on each feature's tracked branch
+# (branch set per submodule in .gitmodules, = main) so the Hub always ships the
+# newest feature code without manual SHA bumps. --remote follows the branch tip;
+# --init checks out any not-yet-initialized submodule. Idempotent; non-fatal if it
+# can't reach the network (falls back to whatever is already checked out).
 if [ -f .gitmodules ] && git rev-parse --git-dir >/dev/null 2>&1; then
-  echo "Syncing feature submodules..."
-  git submodule update --init --recursive || echo "Warning: submodule sync failed; continuing (ensure features/* are present)."
+  echo "Syncing feature submodules to latest main..."
+  git submodule update --remote --init --recursive || echo "Warning: submodule sync failed; continuing (ensure features/* are present)."
 fi
 
 # Set defaults
