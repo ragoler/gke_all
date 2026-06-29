@@ -231,6 +231,23 @@ On teardown it deletes the whole namespace.
   vLLM quote path — `codegemma-7b-it` vs the full `gs://…` served name.)
 - **No image `:latest` drift across clusters** where avoidable; tag per cluster if
   your standalone repo already does.
+- **Never ship a `Namespace` object in `infra/`.** The Hub creates and owns the deploy
+  namespace; a cluster-scoped `Namespace` pushed through the per-deploy *namespaced*
+  apply path 404s and **aborts the whole deploy** (this stranded Kueue with no
+  ServiceAccount → "No pods active"). Need to select your namespace from a
+  webhook/policy? Match the built-in `kubernetes.io/metadata.name` label every
+  namespace already carries — don't apply your own labeled `Namespace`.
+- **Mind apply order — ship RBAC *before* the workload.** `infra/*.yaml` is applied
+  **sorted by filename, all-or-nothing**. If your Deployment references a
+  `ServiceAccount` you ship, name the RBAC file so it sorts first (e.g. `00-rbac.yaml`);
+  otherwise the pods can be rejected (`serviceaccount … not found`) if anything later in
+  the apply fails before your RBAC runs.
+- **Cluster-scoped CRs may live in `infra/`.** The Hub applies a namespaced CR and, on a
+  404/405 (the kind has no namespaced endpoint), retries it at **cluster scope** — so you
+  can ship cluster-scoped CRDs (e.g. Kueue's `ClusterQueue`/`ResourceFlavor`/
+  `WorkloadPriorityClass`) in `infra/` when they must be applied *after* their operator is
+  running, rather than at bootstrap in `cluster/`. (Operators themselves still go in
+  `cluster/` per §5.)
 
 ---
 
@@ -256,6 +273,14 @@ Two things keep this smooth — do both:
   minutes)…"**, and keep polling. Never fall back to the Hub origin for data-plane
   calls (your `hub_router` doesn't serve them — you'd get a 404), and never surface a
   bare fetch error. This mirrors what `verify_setup.sh` already does standalone.
+
+> **Status advances only when the dashboard is fetched.** The card's status is
+> re-evaluated by a background task fired from the `/api/showcases` request, not by a
+> continuous server-side poller. So a feature that becomes Ready *after* its deploy
+> window (e.g. a vLLM pod that takes minutes to load weights, or a Spot-reclaim
+> recovery) can sit at `PROVISIONING`/`REPROVISIONING` in the UI until the dashboard is
+> reloaded — a refresh promotes it to `ACTIVE`. Don't mistake a stale card for a stuck
+> deploy; check the actual Deployment readiness first.
 
 ---
 
@@ -636,6 +661,12 @@ need a redeploy (Hub teardown + redeploy, or recreate the CR) to pick up a new i
 - [ ] **Data-plane readiness:** the playroom gates on the gateway being reachable (probe
       `<gateway>/healthz`) and shows a "provisioning…" state instead of erroring while the
       LB programs; it never falls back to the Hub origin for data-plane calls. (See §3a.)
+- [ ] **No `Namespace` object in `infra/`** (the Hub owns the namespace; a `Namespace`
+      404s the deploy). Select your namespace via the `kubernetes.io/metadata.name` label
+      if a webhook/policy needs it. (See §3.)
+- [ ] **RBAC applies before the workload** — the `ServiceAccount` your Deployment uses is
+      in a file that sorts first (e.g. `00-rbac.yaml`), so pods aren't rejected for a
+      missing SA. (See §3.)
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
 - [ ] **Standalone UI:** an external hub-hosted-playroom feature also serves its own

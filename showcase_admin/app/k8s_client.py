@@ -217,10 +217,23 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
                             group=group, version=version, plural=plural, body=doc,
                         )
                     else:
-                        await custom_api.create_namespaced_custom_object(
-                            group=group, version=version, namespace=namespace,
-                            plural=plural, body=doc,
-                        )
+                        try:
+                            await custom_api.create_namespaced_custom_object(
+                                group=group, version=version, namespace=namespace,
+                                plural=plural, body=doc,
+                            )
+                        except client.exceptions.ApiException as ce:
+                            # A cluster-scoped CRD (e.g. Kueue's ClusterQueue / ResourceFlavor /
+                            # WorkloadPriorityClass) has no namespaced endpoint, so the namespaced
+                            # apply 404s (or 405s). Retry at cluster scope so a feature can ship
+                            # cluster-scoped CRs in infra/ without the Hub having to hardcode every
+                            # such kind in _CLUSTER_SCOPED_CRD_KINDS.
+                            if ce.status in (404, 405):
+                                await custom_api.create_cluster_custom_object(
+                                    group=group, version=version, plural=plural, body=doc,
+                                )
+                            else:
+                                raise
             except client.exceptions.ApiException as e:
                 if e.status == 409 or (e.status == 400 and "already exists" in str(e).lower()):
                     continue

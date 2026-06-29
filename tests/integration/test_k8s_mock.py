@@ -121,6 +121,36 @@ async def test_get_gateway_ip_fallback_default(mock_init):
 
 @pytest.mark.anyio
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
+async def test_apply_cluster_scoped_crd_falls_back_from_namespaced_404():
+    """A cluster-scoped CRD (e.g. Kueue's ClusterQueue) has no namespaced endpoint, so the
+    namespaced apply 404s — the Hub must retry at cluster scope rather than abort the deploy."""
+    import kubernetes_asyncio.client as kc
+    from showcase_admin.app.k8s_client import apply_yaml_manifests
+
+    custom = mock.MagicMock()
+    custom.create_namespaced_custom_object = mock.AsyncMock(
+        side_effect=kc.exceptions.ApiException(status=404)
+    )
+    custom.create_cluster_custom_object = mock.AsyncMock(return_value={})
+    manifest = (
+        "apiVersion: kueue.x-k8s.io/v1beta2\n"
+        "kind: ClusterQueue\n"
+        "metadata:\n  name: kueue-demo-clusterqueue\n"
+        "spec: {}\n"
+    )
+    with mock.patch("kubernetes_asyncio.client.ApiClient"), \
+         mock.patch("kubernetes_asyncio.client.CoreV1Api"), \
+         mock.patch("kubernetes_asyncio.client.AppsV1Api"), \
+         mock.patch("kubernetes_asyncio.client.RbacAuthorizationV1Api"), \
+         mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=custom):
+        await apply_yaml_manifests("gke-showcase-kueue", manifest)
+
+    custom.create_namespaced_custom_object.assert_awaited_once()
+    custom.create_cluster_custom_object.assert_awaited_once()
+    assert custom.create_cluster_custom_object.call_args.kwargs["plural"] == "clusterqueues"
+
+@pytest.mark.anyio
+@mock.patch("showcase_admin.app.config.MODE", "REAL")
 @mock.patch("showcase_admin.app.k8s_client.init_k8s_connection")
 async def test_deploy_showcase_k8s_timeout(mock_init, init_memory_db):
     import asyncio
