@@ -77,8 +77,17 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
                 plural="gateways",
                 name=gateway_name
             )
-            addresses = gateway.get("status", {}).get("addresses", [])
-            if addresses:
+            status = gateway.get("status", {})
+            addresses = status.get("addresses", [])
+            # Only hand out the address once the LB is actually PROGRAMMED. A global
+            # external Gateway reports an address minutes before its data path serves
+            # traffic; returning it early makes the browser's direct call fail with a
+            # network error ("Failed to fetch") even though the card shows ACTIVE.
+            programmed = any(
+                c.get("type") == "Programmed" and c.get("status") == "True"
+                for c in status.get("conditions", [])
+            )
+            if addresses and programmed:
                 return addresses[0].get("value")
         except Exception:
             pass
@@ -87,7 +96,9 @@ async def get_gateway_ip(namespace: str, gateway_name: str) -> str:
         return f"sandbox-router-svc.{namespace}.svc.cluster.local:8080"
     elif "inference" in namespace:
         return f"inference-playroom-svc.{namespace}.svc.cluster.local:8080"
-    return "127.0.0.1"
+    # No programmed gateway yet: return empty so callers/playrooms can show an honest
+    # "provisioning the load balancer…" state instead of fetching a dead 127.0.0.1.
+    return ""
 
 async def get_service_external_ip(namespace: str, service_name: str) -> str:
     """Return a LoadBalancer Service's external IP, or "" if not yet assigned."""

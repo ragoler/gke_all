@@ -234,6 +234,31 @@ On teardown it deletes the whole namespace.
 
 ---
 
+## 3a. Readiness: a green card ≠ a reachable data plane
+
+The Hub flips a feature's card to **ACTIVE** as soon as its `deployment_name` reports
+`ready_replicas == replicas`. But a **hub-hosted playroom's browser talks to the
+feature's own Gateway IP directly** (the Hub does not proxy the data plane), and a
+global external `Gateway`'s load balancer is **`Programmed` minutes *after* the
+Deployment is ready**. So a user can open the playroom and click before the data path
+serves traffic — the symptom is a raw **`Failed to fetch`** even though the card is
+green. (This is exactly what JobSet hit on its first Hub deploy.)
+
+Two things keep this smooth — do both:
+
+- **The Hub side (already handled):** `k8s_client.get_gateway_ip` only returns an
+  address once the Gateway reports `Programmed=True`; otherwise it returns `""`. So
+  `/config` never hands the browser a not-yet-serving IP (and never the old dead
+  `127.0.0.1` fallback).
+- **Your playroom side (you must do this):** treat "LIVE but no gateway IP yet" as a
+  first-class state. After resolving the IP, probe `GET <gateway>/healthz`; until it
+  succeeds, **disable the controls and show "provisioning the load balancer (a few
+  minutes)…"**, and keep polling. Never fall back to the Hub origin for data-plane
+  calls (your `hub_router` doesn't serve them — you'd get a 404), and never surface a
+  bare fetch error. This mirrors what `verify_setup.sh` already does standalone.
+
+---
+
 ## 4. App container (`app/`), if any
 
 - Listen on a single HTTP port; expose `GET /healthz` returning `{"status":"ok"}` so
@@ -293,6 +318,43 @@ them — don't rely on a demo's standalone `setup_infra.sh` having run.
 > cluster + namespace together in `setup_infra.sh`) and a Hub feature (which assumes a
 > live cluster and only owns its namespace). Splitting prereqs out is what makes a
 > heavy demo like `inference_gateway` mount cleanly.
+
+---
+
+## 5a. Admission webhooks — scope them, or you take down the whole Hub
+
+Some operators (Kueue, Istio, Gatekeeper, cert-manager) install **cluster-scoped
+admission webhooks** with `failurePolicy: Fail`. On a *shared* Hub this is the single
+most dangerous thing a feature can bring in, and it bit the Kueue integration **twice**:
+
+1. **It couples the entire Hub to your operator's uptime.** Kueue v0.18 ships
+   mutating/validating webhooks on `deployments`, `pods`, `statefulsets`, `jobs`,
+   `jobsets`, `rayclusters`, … matching *every* namespace. With `failurePolicy: Fail`,
+   while the Kueue controller was still starting, **nothing in the cluster could create
+   a Deployment or Pod** — `build_infra.sh` died applying the admin Deployment with
+   `no endpoints available for service "kueue-webhook-service"`.
+2. **Those webhooks intercept other features' resources — and your own infra.** They
+   gate the JobSet/Ray features' CRs, and once you opt your namespace in, they gate
+   your *own* controller Deployment's pods → Kueue rejected the kueue controller's pods
+   and the deploy reported **"No pods active in namespace …"**.
+
+**Rules:**
+- Install the operator from `cluster/`, but **patch its webhook configurations down to
+  only what you manage.** With a kustomize strategic-merge patch on the upstream
+  `MutatingWebhookConfiguration`/`ValidatingWebhookConfiguration`: `$patch: delete`
+  every webhook for a kind you don't own, and set a `namespaceSelector` (a label you
+  put on your *own* namespace) on the ones you keep. Kueue is the reference — it keeps
+  only `mjob`/`vjob` scoped to `kueue.x-k8s.io/managed=true` and deletes
+  deployment/pod/statefulset/jobset/ray (`features/kueue/cluster/patch-webhook-scope-*.yaml`).
+- **Manage at the highest-level object you own, not its pods.** A batch demo only needs
+  the `Job` webhook; Job-level admission (suspend/resume) brings the pods up itself, so
+  you never need the cluster-wide `pod` webhook.
+- **Keep webhook-gated CRs out of `cluster/`.** Anything the operator's webhook
+  validates (e.g. Kueue's `ClusterQueue`/`ResourceFlavor`) goes in `infra/` and is
+  applied at *deploy* time — after the operator is up — so the bootstrap apply never
+  races the controller coming up.
+- If you must keep a broad webhook, prefer `failurePolicy: Ignore` so a down controller
+  can't wedge the cluster — but scoping to your namespace is strictly better.
 
 ---
 
@@ -567,6 +629,13 @@ need a redeploy (Hub teardown + redeploy, or recreate the CR) to pick up a new i
 - [ ] **New CRD kinds:** if a manifest uses a resource kind no existing feature uses, add
       its `apiGroups`/`resources` to the admin ClusterRole in `infra/main-app.yaml` (else
       the deploy 403s and aborts). Kubernetes RBAC only — not GCP IAM. (See §5.)
+- [ ] **Admission webhooks:** if the feature installs an operator with cluster-scoped
+      webhooks (Kueue, Istio, …), they are scoped to the feature's own namespace and only
+      the kinds it manages (delete the rest); webhook-gated CRs are applied at deploy time
+      (`infra/`), not at bootstrap (`cluster/`). (See §5a.)
+- [ ] **Data-plane readiness:** the playroom gates on the gateway being reachable (probe
+      `<gateway>/healthz`) and shows a "provisioning…" state instead of erroring while the
+      LB programs; it never falls back to the Hub origin for data-plane calls. (See §3a.)
 - [ ] App exposes `/healthz` and CORS; model `model` field matches `--served-model-name`.
 - [ ] Playroom attaches JWT to Hub calls; works in `MODE=MOCK`.
 - [ ] **Standalone UI:** an external hub-hosted-playroom feature also serves its own

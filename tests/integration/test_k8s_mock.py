@@ -115,7 +115,9 @@ async def test_get_gateway_ip_fallback_default(mock_init):
          mock.patch("kubernetes_asyncio.client.ApiClient"):
         
         ip = await get_gateway_ip("other-namespace", "some-gateway")
-        assert ip == "127.0.0.1"
+        # No programmed gateway (and not a sandbox/inference namespace) -> empty, so
+        # the playroom can show "provisioning…" instead of fetching a dead address.
+        assert ip == ""
 
 @pytest.mark.anyio
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
@@ -318,16 +320,31 @@ async def test_k8s_client_remaining_lines():
         with pytest.raises(Exception, match="gcloud command failed: error msg"):
             await run_gcloud_cmd(["fail"])
             
-    # 3. get_gateway_ip success
+    # 3. get_gateway_ip success — only returns the address once the gateway is
+    #    Programmed (has both an address AND a Programmed=True condition).
     mock_custom_gw = mock.MagicMock()
     mock_custom_gw.get_namespaced_custom_object = mock.AsyncMock(return_value={
-        "status": {"addresses": [{"value": "34.123.45.67"}]}
+        "status": {
+            "addresses": [{"value": "34.123.45.67"}],
+            "conditions": [{"type": "Programmed", "status": "True"}],
+        }
     })
     with mock.patch("showcase_admin.app.config.MODE", "REAL"), \
          mock.patch("showcase_admin.app.k8s_client.init_k8s_connection"), \
          mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom_gw), \
          mock.patch("kubernetes_asyncio.client.ApiClient"):
         assert await get_gateway_ip("test-ns", "gw") == "34.123.45.67"
+
+    # 3b. address present but NOT yet Programmed -> empty (still provisioning).
+    mock_custom_gw_np = mock.MagicMock()
+    mock_custom_gw_np.get_namespaced_custom_object = mock.AsyncMock(return_value={
+        "status": {"addresses": [{"value": "34.123.45.67"}]}
+    })
+    with mock.patch("showcase_admin.app.config.MODE", "REAL"), \
+         mock.patch("showcase_admin.app.k8s_client.init_k8s_connection"), \
+         mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=mock_custom_gw_np), \
+         mock.patch("kubernetes_asyncio.client.ApiClient"):
+        assert await get_gateway_ip("test-ns", "gw") == ""
         
     # 4. apply_yaml_manifests
     yaml_content = """
