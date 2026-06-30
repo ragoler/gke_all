@@ -162,7 +162,10 @@ else
       --project="$PROJECT_ID" \
       "${VERSION_FLAG[@]}" \
       --machine-type="$MACHINE_TYPE" \
-      --num-nodes=2 \
+      `# regional cluster: --num-nodes is PER ZONE, so 1 x 3 zones = 3 nodes total.` \
+      `# The default pool only hosts the admin + lightweight operators; feature` \
+      `# workloads auto-provision their own pools via ComputeClass/NAP.` \
+      --num-nodes=1 \
       --no-enable-master-authorized-networks \
       --workload-pool="${PROJECT_ID}.svc.id.goog" \
       --gateway-api=standard \

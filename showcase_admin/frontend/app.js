@@ -234,7 +234,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Update KPI counters
         activeCountMetric.textContent = activeCount;
-        
+        // "Available Features" = every feature the Hub discovered (deployed or not).
+        // Without this it stayed at the placeholder hardcoded in index.html.
+        const totalCountMetric = document.getElementById("metric-total-count");
+        if (totalCountMetric) totalCountMetric.textContent = showcases.length;
+
         // Detect mode from first response cache
         if (showcases.length > 0) {
             clusterModeMetric.textContent = showcasesCache[0].name ? "HYBRID STATE" : "MOCK";
