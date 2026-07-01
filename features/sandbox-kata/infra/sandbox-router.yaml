@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-kata-router-svc
+  namespace: ${NAMESPACE}
+spec:
+  type: ClusterIP
+  selector:
+    app: sandbox-kata-router
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-kata-router-deployment
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-kata-router
+  template:
+    metadata:
+      labels:
+        app: sandbox-kata-router
+    spec:
+      containers:
+      - name: router
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/sandbox-kata-router:latest
+        env:
+        - name: PROXY_TIMEOUT_SECONDS
+          value: "180"
+        # Upstream sandbox-router refuses to start unless auth is configured. This is a
+        # single-user showcase and the router sits behind the feature Gateway, so we opt
+        # into unauthenticated mode explicitly (alternative: set ROUTER_AUTH_TOKEN and
+        # send it from the Hub's message/quote calls).
+        - name: ALLOW_UNAUTHENTICATED_ROUTER
+          value: "true"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"

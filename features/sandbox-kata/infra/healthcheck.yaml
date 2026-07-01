@@ -1,0 +1,18 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: sandbox-kata-router-healthcheck
+  namespace: ${NAMESPACE}
+spec:
+  default:
+    checkIntervalSec: 15
+    config:
+      httpHealthCheck:
+        requestPath: /healthz
+      type: HTTP
+    healthyThreshold: 1
+    timeoutSec: 15
+  targetRef:
+    group: ""
+    kind: Service
+    name: sandbox-kata-router-svc
