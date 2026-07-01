@@ -15,8 +15,15 @@ set -euo pipefail
 : "${REGION:?set REGION to your cluster region, e.g. us-central1}"
 NODE_POOL="${NODE_POOL:-kata-microvm-pool}"
 KATA_DEPLOY_VERSION="${KATA_DEPLOY_VERSION:-3.32.0}"
+# Autoscaling bounds. Defaults keep the pool scale-to-zero (no cost at rest):
+# the first Kata sandbox request then cold-starts a node (multi-minute). For a
+# live UI demo / screenshots, pre-warm one always-on node so the first click is
+# instant: MIN_NODES=1 NUM_NODES=1 bash install-kata-prereq.sh
+MIN_NODES="${MIN_NODES:-0}"
+MAX_NODES="${MAX_NODES:-3}"
+NUM_NODES="${NUM_NODES:-0}"
 
-echo "==> [1/3] Creating nested-virtualization node pool '${NODE_POOL}' (autoscale 0-3, tainted for Kata)"
+echo "==> [1/3] Creating nested-virtualization node pool '${NODE_POOL}' (autoscale ${MIN_NODES}-${MAX_NODES}, ${NUM_NODES} initial, tainted for Kata)"
 gcloud container node-pools create "${NODE_POOL}" \
   --project "${PROJECT}" --cluster "${CLUSTER}" --region "${REGION}" \
   --machine-type n2-standard-4 \
@@ -24,7 +31,7 @@ gcloud container node-pools create "${NODE_POOL}" \
   --enable-nested-virtualization \
   --node-labels nested-virtualization=enabled \
   --node-taints sandbox.gke.io/kata=true:NoSchedule \
-  --enable-autoscaling --min-nodes 0 --max-nodes 3 --num-nodes 0
+  --enable-autoscaling --min-nodes "${MIN_NODES}" --max-nodes "${MAX_NODES}" --num-nodes "${NUM_NODES}"
 
 echo "==> [2/3] Installing kata-deploy ${KATA_DEPLOY_VERSION} (Cloud Hypervisor shim -> registers kata-clh)"
 helm install kata-deploy \

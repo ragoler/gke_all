@@ -33,6 +33,20 @@ gcloud container node-pools create "$NODE_POOL" \
   --enable-autoscaling --min-nodes 0 --max-nodes 3 --num-nodes 0
 ```
 
+### Pre-warming for a live demo / screenshots
+
+The pool above scales from **0**, so the *first* Kata sandbox request cold-starts
+a node — a multi-minute wait the first time you click the tile. For a live UI
+walkthrough or screenshots, pre-warm one always-on node so the first click is
+instant. The script accepts `MIN_NODES` / `NUM_NODES` overrides (both default
+`0`, preserving scale-to-zero):
+
+```bash
+MIN_NODES=1 NUM_NODES=1 bash install-kata-prereq.sh
+```
+
+Scale the pool back to zero after the demo to drop the idle node cost.
+
 ## 2. Install kata-deploy (registers the `kata-clh` RuntimeClass)
 
 kata-deploy lays the Kata binaries onto the labeled nodes and creates the
