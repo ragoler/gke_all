@@ -12,5 +12,5 @@ spec:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: sandbox-kata-router-svc
+    - name: sandbox-router-svc
       port: 8080

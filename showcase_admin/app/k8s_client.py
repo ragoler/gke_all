@@ -613,7 +613,11 @@ def _claim_status(claim: dict) -> str:
 def _claim_sandbox_id(claim: dict) -> str:
     """The bound Sandbox name (== the Hub's sandbox_id), falling back to the claim name."""
     bound = (claim.get("status", {}) or {}).get("sandbox", {}) or {}
-    return bound.get("Name") or claim.get("metadata", {}).get("name", "")
+    # Read both 'name' (standard, post upstream #440) and 'Name' (legacy) — matches the
+    # SDK's async_k8s_helper resolver. Controllers write lowercase 'name'; a capital-only
+    # read here returns the fallback and breaks cross-restart re-attach if the bound name
+    # ever diverges from the claim name.
+    return bound.get("name") or bound.get("Name") or claim.get("metadata", {}).get("name", "")
 
 
 def _build_sandbox_client(namespace: str):
