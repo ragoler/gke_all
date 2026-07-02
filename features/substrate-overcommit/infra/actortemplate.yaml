@@ -1,0 +1,46 @@
+# The ActorTemplate custom resource — the actor workload every lane runs: a
+# tiny in-RAM counter server. Each HTTP request served bumps a shell variable
+# and returns {"count": N}. The count lives ONLY in process memory, which is
+# exactly the point: after suspend → resume, the next touch continues the
+# sequence — visible proof the actor's memory state survived the round-trip
+# through a snapshot while its worker slot was free.
+#
+# The atenet-router proxies to the actor on port 80 (fixed upstream), so the
+# counter listens there. It binds to the WorkerPool via workerSelector
+# (matching the pool's `workload: substrate-overcommit` label).
+apiVersion: ate.dev/v1alpha1
+kind: ActorTemplate
+metadata:
+  name: substrate-overcommit
+  namespace: ${NAMESPACE}
+spec:
+  # Public upstream pause image for the actor sandbox's infra container.
+  # Pinned by digest: the ate.dev CRD rejects tag-only images (a moving tag
+  # would invalidate snapshots).
+  pauseImage: "registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4"
+  # Suspend takes a FULL snapshot of the actor (memory included) so resume
+  # restores the counter mid-sequence. Snapshots land in the project's
+  # substrate-snapshots bucket under a per-feature prefix.
+  snapshotsConfig:
+    onPause: Full
+    location: "gs://${PROJECT_NAME}-substrate-snapshots/substrate-overcommit/"
+  containers:
+    - name: actor
+      # Minimal public counter workload. busybox `nc -l -p 80` serves exactly
+      # one connection per loop iteration; the loop increments the in-RAM
+      # counter each time. Pinned by digest (CRD rejects tag-only images).
+      image: "registry.k8s.io/e2e-test-images/busybox:1.36.1-1@sha256:a9155b13325b2abef48e71de77bb8ac015412a566829f621d06bfae5c699b1b9"
+      command:
+        - "sh"
+        - "-c"
+        - |
+          i=0
+          while true; do
+            i=$((i+1))
+            body="{\"count\": $i}"
+            printf 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: %s\r\n\r\n%s' "${#body}" "$body" | nc -l -p 80
+          done
+  # Binds this template to the substrate-overcommit WorkerPool's workers.
+  workerSelector:
+    matchLabels:
+      workload: substrate-overcommit

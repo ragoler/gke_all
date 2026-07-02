@@ -18,6 +18,12 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces", "services", "serviceaccounts", "secrets", "configmaps", "pods", "pods/log", "nodes"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# The substrate-overcommit router authenticates to the ate-api-server (jwt mode) by
+# minting a token for the ate-client ServiceAccount via the TokenRequest API — a
+# subresource not covered by the plain "serviceaccounts" rule above.
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -37,6 +43,11 @@ rules:
 - apiGroups: ["agents.x-k8s.io"]
   resources: ["sandboxes"]
   verbs: ["get", "list", "watch"]
+# The substrate-basic feature deploys agent-substrate CRs (WorkerPool + ActorTemplate,
+# reconciled by the ate-controller) into its target namespace.
+- apiGroups: ["ate.dev"]
+  resources: ["workerpools", "actortemplates"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["gateway.networking.k8s.io"]
   resources: ["httproutes", "gateways"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

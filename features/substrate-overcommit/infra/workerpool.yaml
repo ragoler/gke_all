@@ -1,0 +1,30 @@
+# The WorkerPool custom resource — the shared worker capacity the demo
+# overcommits onto. 10 actor lanes run against these 2 workers: suspended
+# actors hold no worker slot, so the pool serves far more logical sessions
+# than it has pods.
+#
+# Naming is load-bearing: the ate-controller creates a Deployment named
+# "<workerpool-name>-deployment", so this pool MUST be named
+# `substrate-overcommit` to produce `substrate-overcommit-deployment` — the
+# Deployment the Hub polls for readiness (see feature.yaml deployment_name).
+# The `workload: substrate-overcommit` label is what the ActorTemplate's
+# workerSelector (and the hub_router's CreateActor worker_selector) binds to.
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: substrate-overcommit
+  namespace: ${NAMESPACE}
+  labels:
+    workload: substrate-overcommit
+spec:
+  # 2 workers vs 10 actor lanes — the overcommit ratio the playroom's meter
+  # renders ("10 executions | 2 worker pods").
+  replicas: 2
+  # gVisor (runsc) sandbox class — the default. atelet fetches the matching
+  # runsc binary from the public gVisor release bucket and the ateom worker
+  # brings its own gVisor, so this needs no node-level --enable-sandbox.
+  sandboxClass: gvisor
+  # The ateom worker image, built and pushed by the one-time full-plane prereq
+  # (cluster/install-substrate-overcommit-prereq.sh) via `ko` into this
+  # project's Artifact Registry.
+  ateomImage: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/ateom-gvisor:latest

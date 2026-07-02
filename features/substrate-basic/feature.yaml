@@ -1,0 +1,71 @@
+# Showcase feature descriptor — see /feature.md for the full contract.
+#
+# substrate-basic demonstrates the CORE agent-substrate reconcile loop on a
+# STANDARD GKE cluster: a WorkerPool custom resource is reconciled by the
+# ate-controller into a worker Deployment, and an ActorTemplate declares the
+# actor workload those workers run. This is the control-plane reconcile ONLY —
+# it deliberately excludes the alpha agent-identity data plane (Pod Certificates
+# / ClusterTrustBundle / atenet), so it needs no alpha APIs and runs on a plain
+# Standard cluster. See README.md for the scope summary and cluster/README.md
+# for the one-time operator install (ate-controller + atelet + CRDs), which is a
+# deliberate operator-run prerequisite — like the sandbox-kata Kata prereq, the
+# substrate operator install is NOT a safe auto-applied plain manifest (it needs
+# `ko` to build the operator images), so it is documented rather than declared as
+# a cluster_dir.
+name: substrate-basic
+title: Agent Substrate (Actors on WorkerPools)
+description: >-
+  The runtime for running AI agents at scale — a system for running agents, not
+  an SDK for building them. Because agent sessions sit idle most of the time,
+  Substrate packs many logical "actors" onto a small shared pool of workers for
+  heavy oversubscription, and stays framework-agnostic (ADK, LangChain, Claude
+  Code, MCP). This showcase runs the core control loop live: you declare the
+  desired worker capacity and the controller continuously reconciles it into
+  running, sandboxed pods.
+gke_features:
+  - Run agents at scale — a runtime, not an agent-building SDK
+  - Heavy oversubscription — many idle actors on few shared workers
+  - Framework-agnostic — ADK, LangChain, Claude Code / CodeX, MCP
+  - Declarative control loop — declare capacity, controller reconciles it live
+  - gVisor-sandboxed worker pods for safe tool-calling and shell execution
+
+paths:
+  infra_dir: infra
+  frontend_dir: frontend
+  playroom_slug: substrate-basic
+
+# NOTE: no `cluster_dir` is declared on purpose. The substrate operator
+# (ate-controller Deployment + atelet DaemonSet + the ate.dev CRDs) is built with
+# `ko` and installed once per cluster — a deliberate operator-run step, not a safe
+# auto-applied plain manifest. See cluster/README.md + cluster/install-substrate-prereq.sh.
+# Run it before deploying this feature.
+
+# The Hub polls this Deployment for feature readiness. It is exactly the worker
+# Deployment the ate-controller creates from the `substrate-basic` WorkerPool
+# (deploymentName = <workerpool>-deployment), so the Hub's readiness gate IS the
+# reconcile signal: the feature reports ready once the reconcile produces a
+# Ready worker Deployment.
+deployment_name: substrate-basic-deployment
+
+# No `gateway:` block: this feature is a read-only reconcile visualization. The
+# playroom is served by the Hub at /substrate-basic/, and its API is the in-Hub
+# hub_router below (mounted at /api/features/substrate-basic) — there is no
+# separate data-plane proxy to route to, so no Gateway/HTTPRoute is needed.
+
+# No `build:` entries: this feature ships no container images of its own. The
+# substrate operator + worker (ateom) images are built by the one-time `ko`-based
+# operator prereq (cluster/install-substrate-prereq.sh), and the ActorTemplate's
+# actor uses a public upstream image. The infra manifests reference the
+# ko-published worker image via the standard ${REGION}/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}
+# registry path the prereq pushes to.
+
+template_vars:
+  - NAMESPACE
+  - PROJECT_NAME
+  - REGION
+  - ARTIFACT_REGISTRY_REPO
+
+# This feature's own read-only API. The Hub imports <module>:<attr> and mounts it
+# at /api/features/substrate-basic. It only READS ate.dev custom resources and the
+# reconciled Deployment — it creates and mutates nothing.
+hub_router: "hub_router:router"

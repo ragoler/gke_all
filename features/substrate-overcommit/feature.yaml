@@ -1,0 +1,66 @@
+# Showcase feature descriptor — see /feature.md for the full contract.
+#
+# substrate-overcommit demonstrates the agent-substrate OVERCOMMIT story live:
+# many logical actors (agent sessions) packed onto a small shared pool of
+# workers, with run / suspend / resume driven through the real ate control
+# plane (ate-api-server gRPC) and state preserved across suspend/resume via
+# snapshots. Unlike substrate-basic (reconcile loop only), this feature needs
+# the FULL ate plane — ate-api-server + valkey (session state), atenet-router
+# + dns (resume-on-connect proxy), ate-controller + atelet — installed once
+# per cluster by cluster/install-substrate-overcommit-prereq.sh (static-certs
+# variant: no alpha APIs, runs on a plain GKE Standard cluster).
+name: substrate-overcommit
+title: Agent Substrate — Overcommit (suspend/resume)
+description: >-
+  Agent sessions sit idle most of the time — so Substrate packs many logical
+  "actors" onto a small shared worker pool and suspends idle sessions to
+  snapshots, resuming them on demand with their in-memory state intact. This
+  showcase runs 10 actor lanes against 2 workers, live: run an actor, bump its
+  in-RAM counter, suspend it, resume it — the counter picks up exactly where
+  it left off, proving state survived the round-trip while the worker slot was
+  free for someone else.
+gke_features:
+  - Overcommit — 10 logical actor sessions on a 2-worker pool
+  - Suspend to snapshot — idle sessions release their worker slot
+  - Resume with state intact — in-RAM counter survives the round-trip
+  - Real control plane — every button is an ate-api-server gRPC call
+  - Resume-on-connect — touching a suspended actor transparently revives it
+
+paths:
+  infra_dir: infra
+  frontend_dir: frontend
+  playroom_slug: substrate-overcommit
+
+# NOTE: no `cluster_dir` is declared on purpose. The FULL ate plane (api server,
+# valkey, router, dns, controller, atelet, CRDs, static certs) is built with `ko`
+# and installed once per cluster — a deliberate operator-run step, not a safe
+# auto-applied plain manifest. See cluster/README.md +
+# cluster/install-substrate-overcommit-prereq.sh. Run it before deploying this
+# feature.
+
+# The Hub polls this Deployment for feature readiness. It is exactly the worker
+# Deployment the ate-controller creates from the `substrate-overcommit`
+# WorkerPool (deploymentName = <workerpool>-deployment), so the Hub's readiness
+# gate IS the reconcile signal.
+deployment_name: substrate-overcommit-deployment
+
+# No `gateway:` block: the playroom is served by the Hub at
+# /substrate-overcommit/, and its API is the in-Hub hub_router below (mounted at
+# /api/features/substrate-overcommit), which talks to the in-cluster ate control
+# plane directly — no separate data-plane proxy to route to.
+
+# No `build:` entries: this feature ships no container images of its own. The
+# ate plane + worker (ateom) images are built by the one-time `ko`-based
+# operator prereq, and the ActorTemplate's actor uses a public upstream image.
+
+template_vars:
+  - NAMESPACE
+  - PROJECT_NAME
+  - REGION
+  - ARTIFACT_REGISTRY_REPO
+
+# This feature's control API. The Hub imports <module>:<attr> and mounts it at
+# /api/features/substrate-overcommit. Unlike substrate-basic it MUTATES actor
+# state — but only through the ate control plane (CreateActor / SuspendActor /
+# ResumeActor / DeleteActor gRPC), scoped to this feature's own atespace.
+hub_router: "hub_router:router"
