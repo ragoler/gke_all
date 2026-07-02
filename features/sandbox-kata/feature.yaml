@@ -9,16 +9,17 @@
 name: sandbox-kata
 title: GKE Agent Sandbox (Kata / MicroVM)
 description: >-
-  Orchestrate secure, sub-second isolated agent environments backed by Kata
-  Containers Cloud Hypervisor MicroVMs — a hardware-virtualization isolation
-  boundary — executing dynamic untrusted user instructions safely mapped via
-  GKE Workload Identity.
+  A secure, instant-on place to run the untrusted code your agents generate.
+  Every session runs inside its own hardware-isolated MicroVM with a full,
+  separate guest kernel — the strongest isolation boundary for LLM-generated
+  code, beyond what gVisor's user-space kernel provides. Pre-warmed pools give
+  sub-second, instant-on startup so interactive agents never wait on scheduling.
 gke_features:
-  - Kata Containers MicroVM Runtime
-  - Nested Virtualization Node Pool
-  - SandboxTemplate Custom Resources
-  - SandboxWarmPool Probes
-  - Workload Identity Federation
+  - Own hardware-isolated MicroVM per session (Kata + Cloud Hypervisor)
+  - Stronger isolation than gVisor — a full guest kernel, not a user-space one
+  - Sub-second, instant-on startup from pre-warmed sandbox pools
+  - Default-deny networking — egress only to endpoints you allow
+  - Scoped Vertex AI access with no static keys (Workload Identity)
 
 paths:
   infra_dir: infra

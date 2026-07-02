@@ -1,10 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  # Name must be sandbox-router-svc: the Hub resolves the router at the fixed
-  # DNS name sandbox-router-svc.<namespace> (k8s_client.py), same as the
-  # agent-sandbox/gVisor sibling. A feature-scoped name here is unreachable.
-  name: sandbox-router-svc
+  name: sandbox-kata-router-svc
   namespace: ${NAMESPACE}
 spec:
   type: ClusterIP

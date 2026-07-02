@@ -613,11 +613,7 @@ def _claim_status(claim: dict) -> str:
 def _claim_sandbox_id(claim: dict) -> str:
     """The bound Sandbox name (== the Hub's sandbox_id), falling back to the claim name."""
     bound = (claim.get("status", {}) or {}).get("sandbox", {}) or {}
-    # Read both 'name' (standard, post upstream #440) and 'Name' (legacy) — matches the
-    # SDK's async_k8s_helper resolver. Controllers write lowercase 'name'; a capital-only
-    # read here returns the fallback and breaks cross-restart re-attach if the bound name
-    # ever diverges from the claim name.
-    return bound.get("name") or bound.get("Name") or claim.get("metadata", {}).get("name", "")
+    return bound.get("Name") or claim.get("metadata", {}).get("name", "")
 
 
 def _build_sandbox_client(namespace: str):
@@ -644,21 +640,37 @@ def _create_sandbox_session_sync(namespace: str):
 
 
 def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dict = None, headers: dict = None):
-    """Blocking request through the router, retrying transient 502s during NEG warm-up."""
+    """Blocking request through the router, retrying transient 502s during NEG warm-up.
+
+    Every attempt carries a per-request timeout and the whole retry loop is
+    bounded by a wall-clock deadline, so a blackholed router connection surfaces
+    as an error instead of hanging the Hub request (and the UI) forever.
+    """
     import time
-    last = None
-    for _ in range(30):
+    per_attempt_timeout = 10.0  # seconds: (connect, read) budget per attempt
+    deadline = time.monotonic() + 60.0
+    last_resp = None
+    last_exc = None
+    while time.monotonic() < deadline:
         try:
-            resp = sandbox.connector.send_request(method, endpoint, json=json_payload, headers=headers or {})
+            resp = sandbox.connector.send_request(
+                method, endpoint, json=json_payload, headers=headers or {},
+                timeout=per_attempt_timeout,
+            )
             if getattr(resp, "status_code", 0) != 502:
                 return resp
-            last = resp
-        except Exception:
-            pass
+            last_resp = resp
+        except Exception as exc:  # transient during NEG warm-up; re-raised at deadline
+            last_exc = exc
         time.sleep(1.0)
-    if last is not None:
-        return last
-    return sandbox.connector.send_request(method, endpoint, json=json_payload, headers=headers or {})
+    if last_resp is not None:
+        return last_resp
+    if last_exc is not None:
+        raise last_exc
+    return sandbox.connector.send_request(
+        method, endpoint, json=json_payload, headers=headers or {},
+        timeout=per_attempt_timeout,
+    )
 
 
 async def _find_claim_name(namespace: str, claim_id: str) -> str:

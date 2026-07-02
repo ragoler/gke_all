@@ -17,7 +17,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (jwt) {
             headers["Authorization"] = `Bearer ${jwt}`;
         }
-        return fetch(url, { ...options, headers });
+        // Bound every Hub call so a hung backend surfaces as an error in the
+        // chat panel instead of leaving "Calling sandbox models..." stuck forever.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), options.timeoutMs || 90000);
+        try {
+            return await fetch(url, { ...options, headers, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
     }
 
     function renderChatHistory(id) {

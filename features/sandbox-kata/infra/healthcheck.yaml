@@ -15,4 +15,4 @@ spec:
   targetRef:
     group: ""
     kind: Service
-    name: sandbox-router-svc
+    name: sandbox-kata-router-svc
