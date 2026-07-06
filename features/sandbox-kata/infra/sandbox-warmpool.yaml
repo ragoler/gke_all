@@ -1,0 +1,11 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: sandbox-kata-warmpool
+  namespace: ${NAMESPACE}
+  labels:
+    app: sandbox-kata-warmpool
+spec:
+  replicas: 2
+  sandboxTemplateRef:
+    name: sandbox-kata-template

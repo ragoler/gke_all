@@ -1,0 +1,68 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: sandbox-kata-template
+  namespace: ${NAMESPACE}
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app: demo-agent
+    spec:
+      # Kata Containers Cloud Hypervisor MicroVM runtime — a hardware-virtualization
+      # isolation boundary. Installed cluster-wide by kata-deploy (see cluster/README.md),
+      # which registers this RuntimeClass. Contrast the agent-sandbox sibling's gvisor.
+      runtimeClassName: kata-clh
+      serviceAccountName: default # Inherits GKE node service account when automount is false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+      # Land on the nested-virtualization node pool (Kata MicroVMs require nested virt).
+      nodeSelector:
+        nested-virtualization: enabled
+      # Tolerate the Kata pool taint so only Kata workloads schedule onto the nested-virt
+      # nodes (the pool is created tainted sandbox.gke.io/kata=true:NoSchedule).
+      tolerations:
+      - key: sandbox.gke.io/kata
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: demo-app
+        image: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/sandbox-kata-demo:latest
+        ports:
+        - containerPort: 8888
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "${PROJECT_NAME}"
+        - name: REGION
+          value: "${REGION}"
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "${GOOGLE_GENAI_USE_VERTEXAI}"
+        - name: GCE_METADATA_HOST
+          value: "169.254.169.254"
+        # Optional variables for inter-showcase local vLLM routing
+        - name: OPENAI_API_BASE
+          value: "${OPENAI_API_BASE}"
+        # Must match the gpu-inference vLLM --served-model-name (the full gs:// MODEL_ID),
+        # otherwise the OpenAI-compatible /chat/completions call is rejected with "model does not exist".
+        - name: MODEL_NAME
+          value: "gs://vertex-model-garden-public-us/codegemma/codegemma-7b-it"
+        # API Key Fallback secret - configured as optional
+        - name: GEMINI_API_KEY
+          valueFrom:
+              secretKeyRef:
+                name: gemini-api-key
+                key: GEMINI_API_KEY
+                optional: true
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+      restartPolicy: OnFailure

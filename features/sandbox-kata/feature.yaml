@@ -1,0 +1,64 @@
+# Showcase feature descriptor — see /feature.md for the full contract.
+#
+# Sibling of the agent-sandbox feature: identical SandboxTemplate / SandboxWarmPool
+# / SandboxClaim control-plane shape (extensions.agents.x-k8s.io/v1alpha1), with the
+# isolation layer swapped from gVisor to Kata Containers running Cloud Hypervisor
+# MicroVMs. See README.md for the isolation-swap summary and cluster/README.md for the
+# one-time nested-virtualization node pool + kata-deploy prerequisite (Kata is DIY,
+# unlike GKE's managed gVisor sandbox).
+name: sandbox-kata
+title: GKE Agent Sandbox (Kata / MicroVM)
+description: >-
+  A secure, instant-on place to run the untrusted code your agents generate.
+  Every session runs inside its own hardware-isolated MicroVM with a full,
+  separate guest kernel — the strongest isolation boundary for LLM-generated
+  code, beyond what gVisor's user-space kernel provides. Pre-warmed pools give
+  sub-second, instant-on startup so interactive agents never wait on scheduling.
+gke_features:
+  - Own hardware-isolated MicroVM per session (Kata + Cloud Hypervisor)
+  - Stronger isolation than gVisor — a full guest kernel, not a user-space one
+  - Sub-second, instant-on startup from pre-warmed sandbox pools
+  - Default-deny networking — egress only to endpoints you allow
+  - Scoped Vertex AI access with no static keys (Workload Identity)
+
+paths:
+  infra_dir: infra
+  frontend_dir: frontend
+  playroom_slug: sandbox-kata
+
+# NOTE: no `cluster_dir` is declared on purpose. The Kata runtime prerequisite
+# (a nested-virtualization node pool + a cluster-wide kata-deploy DaemonSet that
+# installs the kata-clh RuntimeClass) is a deliberate operator-run, once-per-cluster
+# step — it mutates kube-system cluster-wide and requires a gcloud node-pool create,
+# neither of which is a safe auto-applied plain manifest. See cluster/README.md +
+# cluster/install-kata-prereq.sh. Run it before deploying this feature.
+
+deployment_name: sandbox-kata-router-deployment
+gateway:
+  name: sandbox-kata-gateway
+  class: gke-l7-gxlb
+
+# Container images this feature needs. Entries with a `git` source are cloned and
+# built from that upstream repo; entries without build from this feature directory.
+# The sandbox-router is runtime-agnostic (it proxies to whatever SandboxClaim pods
+# the control plane hands it), so it is the same upstream router the agent-sandbox
+# feature builds — here under a distinct image name for per-feature isolation.
+build:
+  - image: sandbox-kata-demo
+    context: demo-app
+    dockerfile: demo-app/Dockerfile
+  - image: sandbox-kata-router
+    git: https://github.com/kubernetes-sigs/agent-sandbox.git
+    context: clients/python/agentic-sandbox-client/sandbox-router
+
+template_vars:
+  - NAMESPACE
+  - PROJECT_NAME
+  - REGION
+  - ARTIFACT_REGISTRY_REPO
+  - GOOGLE_GENAI_USE_VERTEXAI
+  - OPENAI_API_BASE
+
+# This feature's own data-plane router (its independent proxy). The Hub imports
+# <module>:<attr> and mounts it at /api/features/sandbox-kata.
+hub_router: "hub_router:router"
