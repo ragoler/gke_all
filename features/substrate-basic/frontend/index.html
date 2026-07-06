@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Substrate (WorkerPool / Actor reconcile) - Playroom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .substrate-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+        }
+        .substrate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-standard);
+            padding-bottom: 1.5rem;
+        }
+        .btn-back {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-standard);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .btn-back:hover { background: rgba(255,255,255,0.08); }
+        .substrate-intro {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            max-width: 900px;
+        }
+        .substrate-kpi {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+        .reconcile-flow {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+        @media (max-width: 800px) {
+            .reconcile-flow { grid-template-columns: 1fr; }
+            .reconcile-arrow { transform: rotate(90deg); text-align: center; }
+        }
+        .reconcile-arrow {
+            font-size: 1.6rem;
+            color: var(--cyan-neon);
+            text-align: center;
+        }
+        .substrate-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-standard);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+        .substrate-card h3 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .kind-badge {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .cr-name {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            color: var(--cyan-neon);
+            font-size: 0.9rem;
+        }
+        .kv-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            border-bottom: 1px dashed rgba(255,255,255,0.06);
+            padding-bottom: 0.35rem;
+        }
+        .kv-row .k { color: var(--text-muted); }
+        .kv-row .v {
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--text-primary);
+            text-align: right;
+            word-break: break-all;
+        }
+        .replica-pill {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .state-ok { color: var(--emerald-neon, #10b981); }
+        .state-wait { color: #f0b429; }
+        .reconcile-state {
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.2rem 0.7rem;
+            border-radius: 20px;
+        }
+        .reconcile-state.ok {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--emerald-neon, #10b981);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .reconcile-state.wait {
+            background: rgba(240, 180, 41, 0.12);
+            color: #f0b429;
+            border: 1px solid rgba(240, 180, 41, 0.3);
+        }
+        .mode-tag {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+        }
+        .container-line {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="substrate-container">
+        <header class="substrate-header">
+            <div class="logo-area">
+                <span class="brand-accent">GKE</span>
+                <span class="brand-title">Agent Substrate — WorkerPool / Actor Reconcile</span>
+                <span class="mode-tag" id="mode-tag"></span>
+            </div>
+            <a href="/" class="btn-back">← Return to Hub</a>
+        </header>
+
+        <p class="substrate-intro">
+            A <strong>WorkerPool</strong> custom resource declares the desired fleet of sandboxed
+            agent workers; the declarative reconcile controller drives a worker Deployment to that
+            desired state. An <strong>ActorTemplate</strong> declares the actor workload those
+            workers run. This playroom is a live, read-only view of that reconcile loop — desired
+            state on the left, the reconciled Deployment on the right. It observes only; it mutates
+            nothing.
+        </p>
+
+        <section class="substrate-kpi">
+            <div class="metric-card">
+                <span class="metric-label">Desired Workers</span>
+                <span class="metric-value" id="kpi-desired">–</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Reconciled (Ready)</span>
+                <span class="metric-value state-ok" id="kpi-ready">–</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Sandbox Class</span>
+                <span class="metric-value" style="color: var(--cyan-neon);" id="kpi-sandbox">gVisor</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Reconcile State</span>
+                <span class="metric-value" id="kpi-state">–</span>
+            </div>
+        </section>
+
+        <div class="reconcile-flow">
+            <!-- Desired state: the WorkerPool CR -->
+            <div class="substrate-card" id="workerpool-card">
+                <div class="card-skeleton">Loading WorkerPool…</div>
+            </div>
+
+            <div class="reconcile-arrow">⟶</div>
+
+            <!-- Reconciled state: the controller-created worker Deployment -->
+            <div class="substrate-card" id="deployment-card">
+                <div class="card-skeleton">Loading reconcile state…</div>
+            </div>
+        </div>
+
+        <h2 class="card-title" style="margin-bottom: 1rem;">ActorTemplate — what the workers run</h2>
+        <div class="substrate-card" id="actortemplate-card">
+            <div class="card-skeleton">Loading ActorTemplate…</div>
+        </div>
+    </div>
+
+    <script src="/static/features/substrate-basic/app.js"></script>
+</body>
+</html>

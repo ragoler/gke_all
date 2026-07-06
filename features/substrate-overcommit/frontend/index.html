@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Substrate — Overcommit (suspend/resume) - Playroom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .oc-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+        }
+        .oc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-standard);
+            padding-bottom: 1.5rem;
+        }
+        .btn-back {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-standard);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .btn-back:hover { background: rgba(255,255,255,0.08); }
+        .oc-intro {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            max-width: 900px;
+        }
+        .mode-tag {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+        }
+        /* The overcommit meter — the headline of the demo. */
+        .oc-meter {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-standard);
+            border-radius: 12px;
+            padding: 1.4rem 1.5rem;
+            margin-bottom: 1.2rem;
+            font-family: 'Outfit', sans-serif;
+        }
+        .oc-meter .big {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--cyan-neon);
+        }
+        .oc-meter .divider {
+            font-size: 1.4rem;
+            color: var(--text-muted);
+        }
+        .oc-meter .big.workers { color: var(--emerald-neon, #10b981); }
+        .oc-meter .unit {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .oc-kpi {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2.2rem;
+        }
+        /* Swimlanes */
+        .lane-table { display: flex; flex-direction: column; gap: 0.55rem; }
+        .lane-row {
+            display: grid;
+            grid-template-columns: 5.2rem 7.2rem 6.4rem 1fr auto;
+            align-items: center;
+            gap: 0.8rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-standard);
+            border-radius: 10px;
+            padding: 0.6rem 1rem;
+        }
+        @media (max-width: 900px) {
+            .lane-row { grid-template-columns: 4.2rem 6.4rem 5.4rem 1fr; }
+            .lane-worker { display: none; }
+        }
+        .lane-name {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        .lane-status {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 0.18rem 0.6rem;
+            border-radius: 20px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .st-running   { background: rgba(16,185,129,0.15); color: var(--emerald-neon, #10b981); border: 1px solid rgba(16,185,129,0.3); }
+        .st-suspended { background: rgba(56,189,248,0.12); color: var(--cyan-neon, #38bdf8);   border: 1px solid rgba(56,189,248,0.3); }
+        .st-busy      { background: rgba(240,180,41,0.12); color: #f0b429;                     border: 1px solid rgba(240,180,41,0.3); }
+        .st-absent    { background: rgba(255,255,255,0.04); color: var(--text-muted);          border: 1px solid var(--border-standard); }
+        .lane-count {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            color: var(--cyan-neon);
+            text-align: center;
+        }
+        .lane-count .count-label { color: var(--text-muted); font-size: 0.7rem; display: block; }
+        .lane-worker {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            word-break: break-all;
+        }
+        .lane-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
+        .lane-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-standard);
+            color: var(--text-primary);
+            padding: 0.32rem 0.7rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.76rem;
+            font-family: 'Inter', sans-serif;
+        }
+        .lane-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+        .lane-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .lane-btn.primary { border-color: rgba(56,189,248,0.5); color: var(--cyan-neon, #38bdf8); }
+        .lane-btn.danger  { border-color: rgba(248,113,113,0.4); color: #f87171; }
+        .oc-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 0.6rem;
+            user-select: none;
+        }
+        .oc-toggle input { accent-color: var(--cyan-neon, #38bdf8); }
+        .oc-error {
+            color: #ff4444;
+            font-size: 0.82rem;
+            min-height: 1.2rem;
+            margin-bottom: 0.8rem;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="oc-container">
+        <header class="oc-header">
+            <div class="logo-area">
+                <span class="brand-accent">GKE</span>
+                <span class="brand-title">Agent Substrate — Overcommit (suspend/resume)</span>
+                <span class="mode-tag" id="mode-tag"></span>
+            </div>
+            <a href="/" class="btn-back">← Return to Hub</a>
+        </header>
+
+        <p class="oc-intro">
+            Agent sessions sit idle most of the time — so Substrate packs many logical
+            <strong>actors</strong> onto a small shared worker pool and <strong>suspends</strong>
+            idle sessions to snapshots, <strong>resuming</strong> them on demand with in-memory
+            state intact. Below: <strong>10 actor lanes on a 2-worker pool</strong>. Each actor is
+            a tiny in-RAM counter — <em>Touch</em> bumps it. Suspend a lane, resume it (or just
+            Touch it — resume-on-connect), and the count picks up exactly where it left off:
+            proof the memory state survived the round-trip while the worker slot was free.
+            With <strong>auto-suspend</strong> on (default), each lane suspends itself the moment
+            its counter bump completes — the slot frees instantly, so rapid Touches across many
+            lanes show live slot churn on the 2-worker pool.
+            Every button is a real ate-api-server gRPC call.
+        </p>
+
+        <div class="oc-meter" id="oc-meter">
+            <span class="big" id="meter-execs">–</span>
+            <span class="unit">executions</span>
+            <span class="divider">|</span>
+            <span class="big workers" id="meter-workers">–</span>
+            <span class="unit">worker pods</span>
+        </div>
+
+        <section class="oc-kpi">
+            <div class="metric-card">
+                <span class="metric-label">Running</span>
+                <span class="metric-value state-ok" id="kpi-running">–</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Suspended (0 slots held)</span>
+                <span class="metric-value" style="color: var(--cyan-neon);" id="kpi-suspended">–</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Worker Pool</span>
+                <span class="metric-value" id="kpi-pool">–</span>
+            </div>
+        </section>
+
+        <label class="oc-toggle">
+            <input type="checkbox" id="auto-suspend" checked>
+            Auto-suspend after touch (frees the worker slot as soon as the counter bump lands)
+        </label>
+
+        <div class="oc-error" id="oc-error"></div>
+
+        <div class="lane-table" id="lane-table">
+            <div class="card-skeleton">Loading lanes…</div>
+        </div>
+    </div>
+
+    <script src="/static/features/substrate-overcommit/app.js"></script>
+</body>
+</html>

@@ -9,3 +9,7 @@ pyjwt>=2.8.0
 pytest-cov>=4.1.0
 # Official Agent Sandbox client — the Hub uses it to claim and route to sandboxes.
 k8s-agent-sandbox==0.4.6
+# substrate-overcommit talks gRPC to the in-cluster ate-api-server; its vendored
+# stubs were generated with protobuf gencode 6.31, which the runtime must match.
+grpcio>=1.70.0
+protobuf>=6.31.0

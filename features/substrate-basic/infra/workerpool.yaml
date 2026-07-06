@@ -1,0 +1,27 @@
+# The WorkerPool custom resource — the desired state the ate-controller reconciles.
+#
+# Naming is load-bearing: the ate-controller creates a Deployment named
+# "<workerpool-name>-deployment", so this pool MUST be named `substrate-basic` to
+# produce `substrate-basic-deployment` — the Deployment the Hub polls for readiness
+# (see feature.yaml `deployment_name`). The `workload: substrate-basic` label is
+# what the ActorTemplate's workerSelector binds to.
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: substrate-basic
+  namespace: ${NAMESPACE}
+  labels:
+    workload: substrate-basic
+spec:
+  # Desired worker count. The controller reconciles the Deployment to this many
+  # Ready replicas; the playroom shows desired vs. reconciled live.
+  replicas: 2
+  # gVisor (runsc) sandbox class — the default. atelet fetches the matching runsc
+  # binary from the public gVisor release bucket and the ateom worker brings its
+  # own gVisor, so this needs no node-level --enable-sandbox (runs on a plain
+  # Standard cluster).
+  sandboxClass: gvisor
+  # The ateom worker image, built and pushed by the one-time operator prereq
+  # (cluster/install-substrate-prereq.sh) via `ko` into this project's Artifact
+  # Registry. Never a verbatim internal digest — always the templated registry path.
+  ateomImage: ${REGION}-docker.pkg.dev/${PROJECT_NAME}/${ARTIFACT_REGISTRY_REPO}/ateom-gvisor:latest
