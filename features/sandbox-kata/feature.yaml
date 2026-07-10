@@ -25,13 +25,19 @@ paths:
   infra_dir: infra
   frontend_dir: frontend
   playroom_slug: sandbox-kata
+  # Cluster BOOTSTRAP HOOK (imperative prereq, not a plain-manifest cluster_dir): a
+  # nested-virtualization node pool + kata-deploy that registers the kata-clh
+  # RuntimeClass. build_infra.sh runs this idempotently at bootstrap, so a fresh
+  # clone installs it automatically — no separate manual step. See cluster/README.md.
+  cluster_setup: cluster/install-kata-prereq.sh
 
-# NOTE: no `cluster_dir` is declared on purpose. The Kata runtime prerequisite
-# (a nested-virtualization node pool + a cluster-wide kata-deploy DaemonSet that
-# installs the kata-clh RuntimeClass) is a deliberate operator-run, once-per-cluster
-# step — it mutates kube-system cluster-wide and requires a gcloud node-pool create,
-# neither of which is a safe auto-applied plain manifest. See cluster/README.md +
-# cluster/install-kata-prereq.sh. Run it before deploying this feature.
+# What the cluster_setup hook installs. The Hub pre-flights these before deploying and
+# fails fast with an actionable message if the hook didn't run / hasn't finished, rather
+# than half-deploying (the router would come up but sandbox creation would error at
+# runtime with no kata-clh runtime).
+requires:
+  runtimeclasses:
+    - kata-clh
 
 deployment_name: sandbox-kata-router-deployment
 gateway:

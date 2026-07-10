@@ -383,6 +383,59 @@ most dangerous thing a feature can bring in, and it bit the Kueue integration **
 
 ---
 
+## 5b. Imperative cluster prerequisites — the `cluster_setup` hook
+
+`cluster_dir` (§5) only covers **declarative** prereqs the Hub can `kubectl apply`. Some
+features need **imperative** cluster setup that can't be a manifest — a GKE node pool
+(`gcloud`, e.g. sandbox-kata's nested-virtualization pool), a `helm`/`ko` operator
+install, cert minting (`openssl`), etc. For those, declare a **bootstrap hook**:
+
+```yaml
+# feature.yaml
+paths:
+  cluster_setup: cluster/install-my-prereq.sh   # run by build_infra.sh at bootstrap
+```
+
+`build_infra.sh` discovers every declared `cluster_setup` and runs it at cluster bootstrap
+(after `cluster_dir`), so **a fresh clone + `build_infra.sh` installs everything — the
+operator never has to know which manual scripts to run.** It exports the standard vars
+(`PROJECT_ID`/`PROJECT_NAME`/`PROJECT`, `CLUSTER_NAME`/`CLUSTER`, `REGION`,
+`ARTIFACT_REGISTRY_REPO`) so your script needs no env plumbing.
+
+Two hard rules for a `cluster_setup` script:
+- **It MUST be idempotent.** `build_infra.sh` re-runs on every bootstrap. Guard imperative
+  steps: create-a-node-pool → `describe … || create …`; `helm install` → `helm upgrade
+  --install`; CRDs/manifests → `apply` (already idempotent). A non-idempotent step that
+  errors on re-run makes every re-bootstrap noisily "fail" for your feature.
+- **A hook failure is non-fatal to the bootstrap** (a missing tool like `ko`/`helm`/`go`
+  shouldn't wedge the whole cluster) — `build_infra.sh` warns and continues. So you also
+  **must** declare `requires:` (below) or a missing prereq becomes a silent half-deploy.
+
+### `requires:` — the deploy-time guard
+
+Declare what the hook installs so the Hub can pre-flight it before deploying your feature:
+
+```yaml
+# feature.yaml
+requires:
+  runtimeclasses: [kata-clh]                       # e.g. sandbox-kata
+  crds: [workerpools.ate.dev, actortemplates.ate.dev]   # e.g. substrate-*
+```
+
+Before applying your `infra/`, the Hub checks each declared RuntimeClass/CRD exists. If a
+prereq is missing (hook not run, or still building, or a tool was absent at bootstrap), the
+deploy **fails fast with an actionable message** ("run ./build_infra.sh …") instead of the
+two failure modes these features hit without it: the router coming up but sandbox creation
+erroring at runtime (kata), or the deploy aborting on `no matches for kind WorkerPool` and
+leaving an **empty namespace stuck in PROVISIONING** (substrate).
+
+> **Prefer `cluster_dir` when you can.** Only reach for `cluster_setup` when the prereq
+> genuinely can't be a manifest (node pools, `ko`/`helm`, cert minting). A plain operator
+> that installs from a kustomize/CRD bundle belongs in `cluster_dir` (§5) — it's simpler,
+> needs no extra tools on the build host, and is idempotent for free.
+
+---
+
 ## 6. Frontend / playroom (`frontend/`), if any
 
 - Ship `index.html` (+ `app.js`, optional `style.css`) under your declared
@@ -651,6 +704,10 @@ need a redeploy (Hub teardown + redeploy, or recreate the CR) to pick up a new i
 - [ ] Cluster-scoped resources (if any) live in `cluster/` and are declared (plain
       top-level YAML, or a **top-level** `kustomization.yaml` for CRD bundles — subdir
       kustomizations are not discovered; include any needed `Namespace` as a resource).
+- [ ] **Imperative prereqs (node pool / helm / ko / certs):** declared via
+      `paths.cluster_setup`, the script is **idempotent** (re-run safe), and the prereqs it
+      installs are declared in `requires:` (runtimeclasses / crds) so the Hub pre-flights
+      them and never silently half-deploys. (See §5b.)
 - [ ] **New CRD kinds:** if a manifest uses a resource kind no existing feature uses, add
       its `apiGroups`/`resources` to the admin ClusterRole in `infra/main-app.yaml` (else
       the deploy 403s and aborts). Kubernetes RBAC only — not GCP IAM. (See §5.)

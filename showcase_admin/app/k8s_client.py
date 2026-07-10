@@ -244,6 +244,43 @@ async def apply_yaml_manifests(namespace: str, manifests_content: str):
 # ----------------------------------------------------------------------
 # BASE INFRAS MANAGEMENT (DEPLOY & TEARDOWN)
 # ----------------------------------------------------------------------
+async def _missing_prerequisites(name: str) -> list[str]:
+    """Return cluster prerequisites a feature declares (``requires:``) that are absent.
+
+    Some features need cluster-scoped prereqs installed at bootstrap by their
+    ``paths.cluster_setup`` hook (a RuntimeClass from a node pool + kata-deploy, an
+    operator's CRDs, …). If the hook wasn't run or failed, applying the feature's infra
+    would silently half-deploy (empty namespace stuck PROVISIONING) or the workload would
+    error at runtime. Checking here lets the deploy fail fast with an actionable message.
+
+    Returns a list of human-readable missing items (e.g. ``RuntimeClass/kata-clh``,
+    ``CRD/workerpools.ate.dev``); empty when all declared prereqs exist or none declared.
+    """
+    req = feature_registry.requires(name)
+    if not req["runtimeclasses"] and not req["crds"]:
+        return []
+    missing: list[str] = []
+    async with client.ApiClient() as api_client:
+        custom_api = client.CustomObjectsApi(api_client)
+
+        async def _exists(group, version, plural, obj_name) -> bool:
+            try:
+                await custom_api.get_cluster_custom_object(group, version, plural, obj_name)
+                return True
+            except client.exceptions.ApiException as e:
+                if e.status == 404:
+                    return False
+                raise
+
+        for rc in req["runtimeclasses"]:
+            if not await _exists("node.k8s.io", "v1", "runtimeclasses", rc):
+                missing.append(f"RuntimeClass/{rc}")
+        for crd in req["crds"]:
+            if not await _exists("apiextensions.k8s.io", "v1", "customresourcedefinitions", crd):
+                missing.append(f"CRD/{crd}")
+    return missing
+
+
 async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex", llm_service_endpoint: str = "", db_session=None, SessionLocal=None):
     target_ns = namespace.strip() if namespace else f"gke-showcase-{name}"
     
@@ -271,7 +308,20 @@ async def deploy_showcase(name: str, namespace: str, llm_provider: str = "vertex
             db.commit()
         else:
             await init_k8s_connection()
-            
+
+            # Pre-flight the feature's declared cluster prerequisites (requires:). If a
+            # bootstrap hook (paths.cluster_setup) didn't install its RuntimeClass/CRDs,
+            # fail fast with an actionable message instead of half-deploying into an empty
+            # namespace (the failure mode the substrate/kata features hit).
+            missing = await _missing_prerequisites(name)
+            if missing:
+                raise Exception(
+                    f"Feature '{name}' is missing cluster prerequisites: {', '.join(missing)}. "
+                    "These are installed at cluster bootstrap by build_infra.sh (the feature's "
+                    "paths.cluster_setup hook). Run ./build_infra.sh (idempotent) — or the feature's "
+                    "cluster/install-*.sh — then redeploy."
+                )
+
             # Apply Gateway
             gateway_infra_file = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.dirname(__file__))),

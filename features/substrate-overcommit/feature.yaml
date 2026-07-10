@@ -30,13 +30,21 @@ paths:
   infra_dir: infra
   frontend_dir: frontend
   playroom_slug: substrate-overcommit
+  # Cluster BOOTSTRAP HOOK (imperative prereq, not a plain-manifest cluster_dir): the
+  # FULL ate plane (api-server, valkey, router, dns, controller, atelet, CRDs, static
+  # certs), built with `ko` + minted with `openssl`. build_infra.sh runs this at
+  # bootstrap so a fresh clone installs it automatically. It needs ko/go/openssl (and
+  # git) on the machine running build_infra; if absent, the hook warns non-fatally and
+  # this feature stays unavailable until installed. See cluster/README.md.
+  cluster_setup: cluster/install-substrate-overcommit-prereq.sh
 
-# NOTE: no `cluster_dir` is declared on purpose. The FULL ate plane (api server,
-# valkey, router, dns, controller, atelet, CRDs, static certs) is built with `ko`
-# and installed once per cluster — a deliberate operator-run step, not a safe
-# auto-applied plain manifest. See cluster/README.md +
-# cluster/install-substrate-overcommit-prereq.sh. Run it before deploying this
-# feature.
+# What the cluster_setup hook installs. The Hub pre-flights these CRDs before deploying
+# and fails fast if the ate plane isn't installed — instead of the deploy aborting on
+# "no matches for kind WorkerPool" and leaving an empty namespace stuck in PROVISIONING.
+requires:
+  crds:
+    - workerpools.ate.dev
+    - actortemplates.ate.dev
 
 # The Hub polls this Deployment for feature readiness. It is exactly the worker
 # Deployment the ate-controller creates from the `substrate-overcommit`

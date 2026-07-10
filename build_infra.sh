@@ -224,6 +224,31 @@ while IFS=$'\t' read -r feature_name cluster_dir; do
   fi
 done < <("$PY" scripts/feature_cluster_dirs.py)
 
+# Run per-feature cluster BOOTSTRAP HOOKS (declared via paths.cluster_setup). These
+# are imperative prerequisites that can't be plain manifests — a nested-virt node
+# pool (gcloud), a helm/ko install, cert minting, etc. Running them here is what lets
+# a fresh clone + build_infra.sh install everything without the operator knowing which
+# manual scripts to run. Each hook MUST be idempotent (re-run safe). A hook failure is
+# NON-FATAL: it warns and continues (a missing tool like ko/helm shouldn't wedge the
+# whole cluster bootstrap), and the Hub's deploy-time `requires` guard then surfaces a
+# clear per-feature error rather than a silent half-deploy.
+echo "Running per-feature cluster setup hooks..."
+# Export every name the various feature scripts expect (PROJECT vs PROJECT_NAME,
+# CLUSTER vs CLUSTER_NAME) so a hook works without per-script env plumbing.
+export PROJECT_ID PROJECT_NAME="$PROJECT_ID" PROJECT="$PROJECT_ID"
+export CLUSTER_NAME CLUSTER="$CLUSTER_NAME" REGION ARTIFACT_REGISTRY_REPO
+while IFS=$'\t' read -r feature_name setup_script; do
+  [ -z "$setup_script" ] && continue
+  echo "  -> [$feature_name] running cluster setup hook: ${setup_script}"
+  if bash "$setup_script"; then
+    echo "     [$feature_name] cluster setup hook OK"
+  else
+    echo "  !! [$feature_name] cluster setup hook FAILED — this feature will be unavailable"
+    echo "     until it succeeds. Fix the cause (often a missing tool such as ko/helm/go),"
+    echo "     then re-run ./build_infra.sh (hooks are idempotent) or run ${setup_script} directly."
+  fi
+done < <("$PY" scripts/feature_cluster_setup.py)
+
 # Configure Workload Identity bindings for Vertex AI
 echo "Configuring Workload Identity IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")

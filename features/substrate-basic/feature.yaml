@@ -33,12 +33,20 @@ paths:
   infra_dir: infra
   frontend_dir: frontend
   playroom_slug: substrate-basic
+  # Cluster BOOTSTRAP HOOK (imperative prereq, not a plain-manifest cluster_dir): the
+  # ate-controller + atelet + ate.dev CRDs, built with `ko`. build_infra.sh runs this
+  # at bootstrap so a fresh clone installs the operator automatically. It needs `ko`
+  # (and git) on the machine running build_infra; if absent, the hook warns non-fatally
+  # and this feature stays unavailable until it's installed. See cluster/README.md.
+  cluster_setup: cluster/install-substrate-prereq.sh
 
-# NOTE: no `cluster_dir` is declared on purpose. The substrate operator
-# (ate-controller Deployment + atelet DaemonSet + the ate.dev CRDs) is built with
-# `ko` and installed once per cluster — a deliberate operator-run step, not a safe
-# auto-applied plain manifest. See cluster/README.md + cluster/install-substrate-prereq.sh.
-# Run it before deploying this feature.
+# What the cluster_setup hook installs. The Hub pre-flights these CRDs before deploying
+# and fails fast if the operator isn't installed — instead of the deploy aborting on
+# "no matches for kind WorkerPool" and leaving an empty namespace stuck in PROVISIONING.
+requires:
+  crds:
+    - workerpools.ate.dev
+    - actortemplates.ate.dev
 
 # The Hub polls this Deployment for feature readiness. It is exactly the worker
 # Deployment the ate-controller creates from the `substrate-basic` WorkerPool

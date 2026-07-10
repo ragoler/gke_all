@@ -149,6 +149,36 @@ async def test_apply_cluster_scoped_crd_falls_back_from_namespaced_404():
     custom.create_cluster_custom_object.assert_awaited_once()
     assert custom.create_cluster_custom_object.call_args.kwargs["plural"] == "clusterqueues"
 
+
+@pytest.mark.anyio
+@mock.patch("showcase_admin.app.config.MODE", "REAL")
+@mock.patch("showcase_admin.app.k8s_client.init_k8s_connection")
+async def test_missing_prerequisites_detects_absent_runtimeclass(mock_init):
+    """A feature declaring `requires:` (e.g. sandbox-kata needs the kata-clh RuntimeClass)
+    reports it missing when absent, so deploy_showcase can fail fast instead of half-deploying."""
+    import kubernetes_asyncio.client as kc
+    from showcase_admin.app.k8s_client import _missing_prerequisites
+
+    # kata-clh absent -> reported missing.
+    custom_absent = mock.MagicMock()
+    custom_absent.get_cluster_custom_object = mock.AsyncMock(
+        side_effect=kc.exceptions.ApiException(status=404)
+    )
+    with mock.patch("kubernetes_asyncio.client.ApiClient"), \
+         mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=custom_absent):
+        missing = await _missing_prerequisites("sandbox-kata")
+    assert missing == ["RuntimeClass/kata-clh"]
+
+    # Present -> nothing missing.
+    custom_present = mock.MagicMock()
+    custom_present.get_cluster_custom_object = mock.AsyncMock(return_value={"metadata": {"name": "kata-clh"}})
+    with mock.patch("kubernetes_asyncio.client.ApiClient"), \
+         mock.patch("kubernetes_asyncio.client.CustomObjectsApi", return_value=custom_present):
+        assert await _missing_prerequisites("sandbox-kata") == []
+
+    # A feature with no `requires:` never calls the API.
+    assert await _missing_prerequisites("kueue") == []
+
 @pytest.mark.anyio
 @mock.patch("showcase_admin.app.config.MODE", "REAL")
 @mock.patch("showcase_admin.app.k8s_client.init_k8s_connection")

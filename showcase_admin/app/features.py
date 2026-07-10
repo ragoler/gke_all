@@ -196,6 +196,25 @@ def template_defaults(name: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in defaults.items()}
 
 
+def requires(name: str) -> dict[str, list[str]]:
+    """Return a feature's declared cluster prerequisites (``requires:`` in feature.yaml).
+
+    A feature whose cluster prereqs are installed by a ``paths.cluster_setup`` hook (a
+    node pool + RuntimeClass, an operator + CRDs, …) declares what those install so the
+    Hub can pre-flight them before deploying. If a prereq is missing (e.g. the bootstrap
+    hook wasn't run or failed), the deploy fails fast with an actionable message instead
+    of silently half-deploying into an empty namespace.
+
+    Recognized keys: ``runtimeclasses`` (RuntimeClass names) and ``crds`` (CRD names such
+    as ``workerpools.ate.dev``). Returns empty lists for features that declare none.
+    """
+    req = (FEATURES.get(name) or {}).get("requires") or {}
+    return {
+        "runtimeclasses": [str(x) for x in (req.get("runtimeclasses") or [])],
+        "crds": [str(x) for x in (req.get("crds") or [])],
+    }
+
+
 def load_routers() -> dict[str, Any]:
     """Import each feature's own data-plane router (its independent "proxy").
 
