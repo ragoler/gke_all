@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from unittest import mock
 import os
 import re
@@ -9,6 +10,8 @@ import httpx
 from kubernetes_asyncio import client, config as k8s_config
 from showcase_admin.app import config, database, features as feature_registry
 from showcase_admin.app.database import ShowcaseModel
+
+logger = logging.getLogger(__name__)
 
 _k8s_initialized = False
 mock_claims = {} # Local mock in-memory cache for offline mock-mode claims
@@ -270,7 +273,13 @@ async def _missing_prerequisites(name: str) -> list[str]:
             except client.exceptions.ApiException as e:
                 if e.status == 404:
                     return False
-                raise
+                # Any other error (e.g. 403 if the admin SA lacks read RBAC on this kind)
+                # means we can't determine presence. A guard must never make a deploy fail
+                # that would otherwise succeed, so assume present and let the deploy proceed
+                # rather than turning an unknown into a hard ERROR.
+                logger.warning("Prerequisite check for %s/%s could not run (%s); assuming present.",
+                               plural, obj_name, getattr(e, "status", e))
+                return True
 
         for rc in req["runtimeclasses"]:
             if not await _exists("node.k8s.io", "v1", "runtimeclasses", rc):
