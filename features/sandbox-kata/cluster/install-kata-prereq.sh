@@ -6,10 +6,15 @@
 # feature's paths.cluster_setup hook, so build_infra.sh runs it at cluster bootstrap
 # (a fresh clone installs it with no manual step) — and it must therefore be IDEMPOTENT
 # (safe to re-run on every bootstrap): the node pool is created only if absent, and
-# kata-deploy uses `helm upgrade --install`.
+# kata-deploy is applied with `kubectl apply` (declarative, converges on re-run).
 #
-# See README.md in this directory for the step-by-step explanation.
+# NO HELM REQUIRED. Earlier revisions used `helm install kata-deploy`, but the
+# kata-deploy manifests (DaemonSet + RBAC) are vendored under ./kata-deploy/ pinned
+# to kata 3.20.0 — the last release that ships plain kustomize manifests — so this
+# hook needs only `gcloud` + `kubectl`. See README.md for details.
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Accept PROJECT/CLUSTER or the PROJECT_ID/CLUSTER_NAME names build_infra.sh exports.
 PROJECT="${PROJECT:-${PROJECT_ID:-}}"
@@ -18,7 +23,6 @@ CLUSTER="${CLUSTER:-${CLUSTER_NAME:-}}"
 : "${CLUSTER:?set CLUSTER (or CLUSTER_NAME) to your GKE cluster name}"
 : "${REGION:?set REGION to your cluster region, e.g. us-central1}"
 NODE_POOL="${NODE_POOL:-kata-microvm-pool}"
-KATA_DEPLOY_VERSION="${KATA_DEPLOY_VERSION:-3.32.0}"
 # Autoscaling bounds. Defaults keep the pool scale-to-zero (no cost at rest):
 # the first Kata sandbox request then cold-starts a node (multi-minute). For a
 # live UI demo / screenshots, pre-warm one always-on node so the first click is
@@ -42,16 +46,21 @@ else
     --enable-autoscaling --min-nodes "${MIN_NODES}" --max-nodes "${MAX_NODES}" --num-nodes "${NUM_NODES}"
 fi
 
-echo "==> [2/3] Installing kata-deploy ${KATA_DEPLOY_VERSION} (Cloud Hypervisor shim -> registers kata-clh)"
-# upgrade --install is idempotent: installs if absent, no-ops/updates if present.
-helm upgrade --install kata-deploy \
-  oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy \
-  --version "${KATA_DEPLOY_VERSION}" \
-  --namespace kube-system \
-  --set env.shims="clh"
+echo "==> [2/3] Applying vendored kata-deploy (Cloud Hypervisor shim -> registers kata-clh)"
+# kubectl apply is idempotent: creates if absent, converges if present. RBAC first
+# so the DaemonSet's ServiceAccount exists before it starts.
+kubectl apply -f "${SCRIPT_DIR}/kata-deploy/kata-rbac.yaml"
+kubectl apply -f "${SCRIPT_DIR}/kata-deploy/kata-deploy.yaml"
 
 echo "==> [3/3] Waiting for kata-deploy rollout + kata-clh RuntimeClass"
-kubectl -n kube-system rollout status ds/kata-deploy
+kubectl -n kube-system rollout status ds/kata-deploy --timeout=300s
+# kata-deploy creates the RuntimeClass from each node once the shim is installed;
+# give it a short grace window rather than assuming it is instant.
+for i in $(seq 1 30); do
+  if kubectl get runtimeclass kata-clh >/dev/null 2>&1; then break; fi
+  echo "     waiting for kata-clh RuntimeClass to be registered ($i/30)..."
+  sleep 5
+done
 kubectl get runtimeclass kata-clh
 
 echo "==> Done. Deploy the sandbox-kata feature from the Hub."

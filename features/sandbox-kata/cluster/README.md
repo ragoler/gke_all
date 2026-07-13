@@ -50,16 +50,20 @@ Scale the pool back to zero after the demo to drop the idle node cost.
 ## 2. Install kata-deploy (registers the `kata-clh` RuntimeClass)
 
 kata-deploy lays the Kata binaries onto the labeled nodes and creates the
-RuntimeClasses. Pin a released chart version and select the Cloud Hypervisor
-(`clh`) shim so the `kata-clh` RuntimeClass this feature references is created.
+RuntimeClasses. **No Helm required** — the DaemonSet + RBAC manifests are vendored
+under [`kata-deploy/`](kata-deploy/), pinned to kata **3.20.0** (the last release
+that ships plain kustomize manifests; 3.28+ moved kata-deploy to a Helm chart only).
+The vendored DaemonSet is edited to install only the Cloud Hypervisor (`clh`) shim,
+so the `kata-clh` RuntimeClass this feature references is the one created.
 
 ```bash
-helm install kata-deploy \
-  oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy \
-  --version 3.32.0 \
-  --namespace kube-system \
-  --set env.shims="clh"
+kubectl apply -f kata-deploy/kata-rbac.yaml
+kubectl apply -f kata-deploy/kata-deploy.yaml
 ```
+
+To bump the kata version, re-download the two files from the kata-containers repo
+at a tag that still carries `tools/packaging/kata-deploy/{kata-rbac,kata-deploy}/base/`,
+then re-apply `SHIMS: "clh"` / `DEFAULT_SHIM: "clh"` and pin the DaemonSet image tag.
 
 ## 3. Verify
 
