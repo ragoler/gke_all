@@ -651,7 +651,12 @@ async def execute_http_with_retry(method: str, url: str, headers: dict = None, j
 # the sandbox. Live Sandbox handles are kept in-memory per Hub process, keyed by sandbox id.
 _sandbox_sessions: dict = {}
 
+# Defaults for the original agent-sandbox (gVisor) feature. Sibling features that reuse
+# this plumbing (e.g. sandbox-kata) deploy their own SandboxTemplate and router Service
+# and pass their names via the template=/router_svc= parameters below — the names are
+# feature-owned (set in each feature's infra/), not knowable by Hub core.
 TEMPLATE_NAME = "agent-sandbox-template"
+ROUTER_SVC_NAME = "sandbox-router-svc"
 
 # SandboxClaim CRD coordinates. The Hub keys its in-memory handles by sandbox_id (the bound
 # pod, agent-sandbox-warmpool-*), but the deletable object is the SandboxClaim (sandbox-claim-*)
@@ -675,27 +680,27 @@ def _claim_sandbox_id(claim: dict) -> str:
     return bound.get("Name") or claim.get("metadata", {}).get("name", "")
 
 
-def _build_sandbox_client(namespace: str):
+def _build_sandbox_client(namespace: str, router_svc: str = ROUTER_SVC_NAME):
     # Imported lazily so MOCK mode and local tests don't require the library installed.
     from k8s_agent_sandbox import SandboxClient
     from k8s_agent_sandbox.models import SandboxDirectConnectionConfig
     return SandboxClient(
         connection_config=SandboxDirectConnectionConfig(
-            api_url=f"http://sandbox-router-svc.{namespace}.svc.cluster.local:8080",
+            api_url=f"http://{router_svc}.{namespace}.svc.cluster.local:8080",
             server_port=8888,
         )
     )
 
 
-def _create_sandbox_session_sync(namespace: str):
+def _create_sandbox_session_sync(namespace: str, template: str, router_svc: str):
     """Blocking: claim a sandbox and wait until it is ready (via asyncio.to_thread).
 
     template is required by the 0.4.x client; the claim auto-adopts a pre-warmed pod from
     the SandboxWarmPool that references the same template, and the client resolves the
     bound sandbox id (which differs from the claim name for a warm pool).
     """
-    sandbox_client = _build_sandbox_client(namespace)
-    return sandbox_client.create_sandbox(template=TEMPLATE_NAME, namespace=namespace)
+    sandbox_client = _build_sandbox_client(namespace, router_svc)
+    return sandbox_client.create_sandbox(template=template, namespace=namespace)
 
 
 def _sandbox_request_sync(sandbox, method: str, endpoint: str, json_payload: dict = None, headers: dict = None):
@@ -759,16 +764,16 @@ async def _find_claim_name(namespace: str, claim_id: str) -> str:
     )
 
 
-def _rebind_sandbox_session_sync(namespace: str, claim_name: str):
+def _rebind_sandbox_session_sync(namespace: str, claim_name: str, router_svc: str):
     """Blocking: re-attach a Sandbox handle to an existing claim's running pod.
 
     The SDK's get_sandbox re-attaches to live infrastructure, so a claim created by a
     previous Hub process is reachable again without re-claiming.
     """
-    return _build_sandbox_client(namespace).get_sandbox(claim_name, namespace)
+    return _build_sandbox_client(namespace, router_svc).get_sandbox(claim_name, namespace)
 
 
-async def _get_or_rebind_sandbox(namespace: str, claim_id: str):
+async def _get_or_rebind_sandbox(namespace: str, claim_id: str, router_svc: str = ROUTER_SVC_NAME):
     """Return the live Sandbox handle for claim_id.
 
     ``_sandbox_sessions`` is in-process memory, so it is empty for any claim this Hub
@@ -782,7 +787,7 @@ async def _get_or_rebind_sandbox(namespace: str, claim_id: str):
     claim_name = await _find_claim_name(namespace, claim_id)
     if claim_name is None:
         return None
-    sandbox = await asyncio.to_thread(_rebind_sandbox_session_sync, namespace, claim_name)
+    sandbox = await asyncio.to_thread(_rebind_sandbox_session_sync, namespace, claim_name, router_svc)
     _sandbox_sessions[claim_id] = sandbox
     return sandbox
 
@@ -808,14 +813,19 @@ async def list_sandbox_claims(namespace: str) -> list:
     ]
 
 
-async def create_sandbox_claim(namespace: str, claim_id: str = None) -> dict:
+async def create_sandbox_claim(
+    namespace: str,
+    claim_id: str = None,
+    template: str = TEMPLATE_NAME,
+    router_svc: str = ROUTER_SVC_NAME,
+) -> dict:
     if config.MODE == "MOCK":
         cid = claim_id or f"sb-{uuid.uuid4().hex[:8]}"
         mock_claims[cid] = "ACTIVE"
         return {"id": cid, "status": "RUNNING"}
 
     try:
-        sandbox = await asyncio.to_thread(_create_sandbox_session_sync, namespace)
+        sandbox = await asyncio.to_thread(_create_sandbox_session_sync, namespace, template, router_svc)
     except ImportError as e:
         raise Exception(f"Agent Sandbox client library unavailable: {str(e)}")
     except Exception as e:
@@ -920,11 +930,14 @@ def _sandbox_routing_headers(provider: str, vllm_endpoint: str) -> dict:
     }
 
 
-async def message_sandbox_claim(namespace: str, claim_id: str, message: str, provider: str, vllm_namespace: str) -> str:
+async def message_sandbox_claim(
+    namespace: str, claim_id: str, message: str, provider: str, vllm_namespace: str,
+    router_svc: str = ROUTER_SVC_NAME,
+) -> str:
     if config.MODE == "MOCK":
         return f"[{claim_id}] Mock reply using model routing '{provider}': Recieved your prompt '{message}'."
 
-    sandbox = await _get_or_rebind_sandbox(namespace, claim_id)
+    sandbox = await _get_or_rebind_sandbox(namespace, claim_id, router_svc)
     if not sandbox:
         return "Failed to communicate with GKE sandbox: claim not found (it may have been released). Please allocate a new sandbox."
     try:
@@ -940,11 +953,14 @@ async def message_sandbox_claim(namespace: str, claim_id: str, message: str, pro
         return f"Failed to communicate with GKE sandbox: {str(e)}"
 
 
-async def quote_sandbox_claim(namespace: str, claim_id: str, provider: str, vllm_namespace: str) -> str:
+async def quote_sandbox_claim(
+    namespace: str, claim_id: str, provider: str, vllm_namespace: str,
+    router_svc: str = ROUTER_SVC_NAME,
+) -> str:
     if config.MODE == "MOCK":
         return f"\"The best way to predict the future is to invent it.\" - Routed via GKE Sandbox [{claim_id}] using provider '{provider}'."
 
-    sandbox = await _get_or_rebind_sandbox(namespace, claim_id)
+    sandbox = await _get_or_rebind_sandbox(namespace, claim_id, router_svc)
     if not sandbox:
         return "Failed to fetch quotes from GKE sandbox: claim not found (it may have been released). Please allocate a new sandbox."
     try:

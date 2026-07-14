@@ -23,6 +23,14 @@ router = APIRouter()
 FEATURE_NAME = "sandbox-kata"
 VLLM_FEATURE_NAME = "gpu-inference"
 
+# This feature's own SandboxTemplate and router Service (from infra/). The shared
+# k8s_client defaults to the agent-sandbox (gVisor) names, so every call below must
+# pass these — otherwise claims are created against the sibling feature's template
+# ("SandboxTemplate 'agent-sandbox-template' not found") and sandbox HTTP goes to a
+# Service that doesn't exist in this namespace.
+TEMPLATE_NAME = "sandbox-kata-template"
+ROUTER_SVC_NAME = "sandbox-kata-router-svc"
+
 
 @router.get("/sandboxes", summary="List active Kata MicroVM sandbox claims")
 async def list_sandbox_claims(db: Session = Depends(database.get_db)) -> list:
@@ -34,7 +42,9 @@ async def list_sandbox_claims(db: Session = Depends(database.get_db)) -> list:
 async def create_sandbox_claim(db: Session = Depends(database.get_db)) -> dict:
     ns = database.get_feature_namespace(db, FEATURE_NAME)
     claim_id = f"sb-{uuid.uuid4().hex[:8]}"
-    return await k8s_client.create_sandbox_claim(ns, claim_id)
+    return await k8s_client.create_sandbox_claim(
+        ns, claim_id, template=TEMPLATE_NAME, router_svc=ROUTER_SVC_NAME
+    )
 
 
 @router.delete("/sandboxes/{claim_id}", summary="Release a sandbox claim")
@@ -61,6 +71,7 @@ async def message_sandbox(
         message=prompt,
         provider=provider,
         vllm_namespace=vllm_ns,
+        router_svc=ROUTER_SVC_NAME,
     )
     return {"reply": reply}
 
@@ -80,5 +91,6 @@ async def quote_sandbox(
         claim_id=claim_id,
         provider=provider,
         vllm_namespace=vllm_ns,
+        router_svc=ROUTER_SVC_NAME,
     )
     return {"quote": quote}

@@ -79,15 +79,55 @@ gcloud artifacts repositories create "$REPO_NAME" \
     --project="$PROJECT_ID" \
     --description="Docker repository for GKE Feature Showcase Hub showcases" || echo "Repository already exists or skipped, continuing..."
 
-echo "Authenticating Docker daemon to Artifact Registry..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+# Local docker is preferred (fast incremental builds), but not required: hosts with
+# only gcloud+kubectl (no Docker daemon) fall back to Cloud Build below — the same
+# principle as the helm-free kata prereq: the platform must not silently depend on
+# tools the operator's machine may not have.
+DOCKER_AVAILABLE=true
+if command -v docker >/dev/null 2>&1; then
+  echo "Authenticating Docker daemon to Artifact Registry..."
+  gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+else
+  DOCKER_AVAILABLE=false
+  echo "docker not found — images will build remotely via Cloud Build (gcloud builds submit)."
+fi
+
+# Build + push one image, via local docker or Cloud Build.
+# Args: tag context_dir [dockerfile_path]
+# dockerfile_path is relative to the CWD (may be empty = <context>/Dockerfile); for the
+# Cloud Build path it is re-expressed relative to the uploaded context, which it must
+# live inside. Cloud Build workers are amd64, matching BUILD_PLATFORM's default.
+build_push() {
+  local tag="$1" context="$2" dockerfile="${3:-}"
+  if [ "$DOCKER_AVAILABLE" = "true" ]; then
+    if [ -n "$dockerfile" ]; then
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" -f "$dockerfile" "$context"
+    else
+      docker build --platform "$BUILD_PLATFORM" -t "$tag" "$context"
+    fi
+    docker push "$tag"
+    return
+  fi
+  local df_in_ctx="Dockerfile"
+  if [ -n "$dockerfile" ]; then
+    df_in_ctx=$("$PY" -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$dockerfile" "$context")
+  fi
+  local cfg
+  cfg=$(mktemp "${TMPDIR:-/tmp}/cloudbuild.XXXXXX.yaml")
+  cat > "$cfg" <<EOF
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: ['build', '-t', '${tag}', '-f', '${df_in_ctx}', '.']
+images: ['${tag}']
+EOF
+  gcloud builds submit "$context" --config "$cfg" --project "$PROJECT_ID" --quiet
+  rm -f "$cfg"
+}
 
 # The Admin Hub container is the platform itself (not a feature), so it stays explicit.
 build_admin() {
   echo ">>> Building Showcase Admin Dashboard..."
-  docker build --platform "$BUILD_PLATFORM" -t "${REGISTRY}/showcase-admin:latest" -f showcase_admin/Dockerfile .
-  echo ">>> Pushing Showcase Admin Dashboard..."
-  docker push "${REGISTRY}/showcase-admin:latest"
+  build_push "${REGISTRY}/showcase-admin:latest" . showcase_admin/Dockerfile
 }
 
 # Build one feature image. Entries with a git source are cloned and built from upstream;
@@ -102,22 +142,20 @@ build_feature_image() {
     echo ">>> [$fname] Cloning ${git_url} to build ${image}..."
     git clone --depth 1 "$git_url" "$tmp"
     if [ "$dockerfile" != "-" ]; then
-      docker build --platform "$BUILD_PLATFORM" -t "$tag" -f "${tmp}/${dockerfile}" "${tmp}/${context}"
+      build_push "$tag" "${tmp}/${context}" "${tmp}/${dockerfile}"
     else
-      docker build --platform "$BUILD_PLATFORM" -t "$tag" "${tmp}/${context}"
+      build_push "$tag" "${tmp}/${context}"
     fi
     rm -rf "$tmp"
   else
     local feature_dir="features/${fname}"
     echo ">>> [$fname] Building ${image}..."
     if [ "$dockerfile" != "-" ]; then
-      docker build --platform "$BUILD_PLATFORM" -t "$tag" -f "${feature_dir}/${dockerfile}" "${feature_dir}/${context}"
+      build_push "$tag" "${feature_dir}/${context}" "${feature_dir}/${dockerfile}"
     else
-      docker build --platform "$BUILD_PLATFORM" -t "$tag" "${feature_dir}/${context}"
+      build_push "$tag" "${feature_dir}/${context}"
     fi
   fi
-  echo ">>> [$fname] Pushing ${image}..."
-  docker push "$tag"
 }
 
 # Iterate every build target declared across features/*/feature.yaml. When TARGET_FEATURE

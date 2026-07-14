@@ -1,3 +1,23 @@
+# Upload set for `gcloud builds submit` (the docker-less fallback in
+# scripts/build_and_push.sh). Mirrors .dockerignore: the Cloud Build worker runs the
+# same `docker build`, so anything the Dockerfile doesn't need — venvs, git objects,
+# caches — is pure upload weight (100MB+ without these excludes).
 .git
 .git/**
+**/.git
+.venv
+**/.venv
+venv/
+ENV/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+data/
+logs/
+.env
+*.pdf
+.claude/
+.DS_Store
 cloudbuild-hub.yaml
