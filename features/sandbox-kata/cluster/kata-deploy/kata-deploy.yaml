@@ -15,6 +15,18 @@ spec:
     spec:
       serviceAccountName: kata-deploy-sa
       hostPID: true
+      # Only install Kata onto the nested-virtualization pool. Without this the
+      # DaemonSet would land on the Hub's regular nodes and reconfigure their
+      # containerd — unnecessary (they can't run MicroVMs) and destabilizing.
+      nodeSelector:
+        nested-virtualization: enabled
+      # The kata pool is tainted sandbox.gke.io/kata=true:NoSchedule so only Kata
+      # workloads land there; the installer must tolerate it to run on those nodes.
+      tolerations:
+        - key: sandbox.gke.io/kata
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       containers:
         - name: kube-kata
           # Pinned to the kata-containers 3.20.0 release for reproducibility.
@@ -44,8 +56,13 @@ spec:
               value: "clh"
             - name: DEFAULT_SHIM
               value: "clh"
+            # The kata-clh RuntimeClass is managed statically (see kata-runtimeclass.yaml)
+            # so it exists at bootstrap even while the pool is scaled to zero — otherwise
+            # the Hub's deploy-time `requires:` guard would deadlock (guard blocks -> warmpool
+            # never created -> pool never scales up -> DaemonSet never runs -> RuntimeClass
+            # never created). kata-deploy here only lays down binaries + containerd config.
             - name: CREATE_RUNTIMECLASSES
-              value: "true"
+              value: "false"
             - name: CREATE_DEFAULT_RUNTIMECLASS
               value: "false"
             - name: ALLOWED_HYPERVISOR_ANNOTATIONS

@@ -48,19 +48,21 @@ fi
 
 echo "==> [2/3] Applying vendored kata-deploy (Cloud Hypervisor shim -> registers kata-clh)"
 # kubectl apply is idempotent: creates if absent, converges if present. RBAC first
-# so the DaemonSet's ServiceAccount exists before it starts.
+# so the DaemonSet's ServiceAccount exists before it starts; the RuntimeClass is
+# applied statically so kata-clh exists immediately even at pool scale-zero.
 kubectl apply -f "${SCRIPT_DIR}/kata-deploy/kata-rbac.yaml"
+kubectl apply -f "${SCRIPT_DIR}/kata-deploy/kata-runtimeclass.yaml"
 kubectl apply -f "${SCRIPT_DIR}/kata-deploy/kata-deploy.yaml"
 
-echo "==> [3/3] Waiting for kata-deploy rollout + kata-clh RuntimeClass"
+echo "==> [3/3] Verifying kata-clh RuntimeClass + kata-deploy DaemonSet"
+# The DaemonSet targets the nested-virt pool only. While that pool is scaled to zero
+# it has 0 desired pods, so rollout status returns immediately (nothing to install
+# yet — install happens per-node when the autoscaler brings up a kata node for the
+# first sandbox/warmpool pod). kata-clh must exist now (static apply above).
 kubectl -n kube-system rollout status ds/kata-deploy --timeout=300s
-# kata-deploy creates the RuntimeClass from each node once the shim is installed;
-# give it a short grace window rather than assuming it is instant.
-for i in $(seq 1 30); do
-  if kubectl get runtimeclass kata-clh >/dev/null 2>&1; then break; fi
-  echo "     waiting for kata-clh RuntimeClass to be registered ($i/30)..."
-  sleep 5
-done
 kubectl get runtimeclass kata-clh
 
 echo "==> Done. Deploy the sandbox-kata feature from the Hub."
+echo "    Note: the first sandbox on a cold pool waits for (a) a kata node to scale up"
+echo "    and (b) kata-deploy to install the clh shim on it (~1-2 min); pods that land"
+echo "    before the shim is ready retry automatically. Pre-warm with MIN_NODES=1 NUM_NODES=1."

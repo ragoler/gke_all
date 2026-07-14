@@ -1,0 +1,24 @@
+---
+# kata-clh RuntimeClass — the Cloud Hypervisor MicroVM runtime the sandbox-kata
+# feature references (SandboxTemplate.spec.podTemplate.spec.runtimeClassName).
+#
+# Managed statically (rather than by kata-deploy's CREATE_RUNTIMECLASSES) so it
+# exists the moment the bootstrap hook runs, even while the nested-virt pool is
+# scaled to zero. That lets the Hub's deploy-time `requires: {runtimeclasses: [kata-clh]}`
+# guard pass, the feature deploy proceed, and its warmpool pods (which carry the
+# nodeSelector + toleration) trigger the autoscaler to bring up a kata node — on
+# which the kata-deploy DaemonSet then installs the clh handler.
+#
+# Deliberately NO `scheduling.nodeSelector` here: kata-deploy's own definition pins
+# to katacontainers.io/kata-runtime=true, a label added only AFTER install, which
+# would stop the autoscaler from scaling the pool up from zero. Node targeting lives
+# on the pod (nested-virtualization=enabled + the kata taint toleration) instead.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-clh
+handler: kata-clh
+overhead:
+  podFixed:
+    memory: "160Mi"
+    cpu: "250m"
