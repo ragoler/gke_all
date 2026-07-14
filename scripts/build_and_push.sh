@@ -112,16 +112,28 @@ build_push() {
   if [ -n "$dockerfile" ]; then
     df_in_ctx=$("$PY" -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$dockerfile" "$context")
   fi
-  local cfg
-  cfg=$(mktemp "${TMPDIR:-/tmp}/cloudbuild.XXXXXX.yaml")
+  # mktemp dir rather than a suffixed file template — BSD/macOS mktemp requires the
+  # XXXXXX to be trailing, and gcloud requires the config to end in .yaml.
+  local cfgdir cfg
+  cfgdir=$(mktemp -d)
+  cfg="${cfgdir}/cloudbuild.yaml"
   cat > "$cfg" <<EOF
 steps:
 - name: gcr.io/cloud-builders/docker
   args: ['build', '-t', '${tag}', '-f', '${df_in_ctx}', '.']
 images: ['${tag}']
 EOF
-  gcloud builds submit "$context" --config "$cfg" --project "$PROJECT_ID" --quiet
-  rm -f "$cfg"
+  if gcloud builds submit "$context" --config "$cfg" --project "$PROJECT_ID" --quiet; then
+    rm -rf "$cfgdir"
+    return
+  fi
+  rm -rf "$cfgdir"
+  # Last resort: Cloud Build can be denied by org policy for user credentials
+  # (serviceusage.services.use). Build on the showcase cluster itself with Kaniko —
+  # needs only gcloud+kubectl and Workload Identity. See scripts/kaniko_build.sh.
+  echo "Cloud Build unavailable — falling back to an in-cluster Kaniko build..."
+  PROJECT_ID="$PROJECT_ID" REGION="$REGION" \
+    bash "$(dirname "$0")/kaniko_build.sh" "$tag" "$context" "$df_in_ctx"
 }
 
 # The Admin Hub container is the platform itself (not a feature), so it stays explicit.
